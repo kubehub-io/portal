@@ -4,9 +4,11 @@ on:
   push:
     paths:
       - 'Dockerfile.webshell'
+      - '.github/workflows/webshell-docker.yml'
   pull_request:
     paths:
       - 'Dockerfile.webshell'
+      - '.github/workflows/webshell-docker.yml'
   workflow_dispatch:
 
 permissions:
