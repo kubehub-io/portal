@@ -1,0 +1,33 @@
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    jq \
+    vim \
+    tmux \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG TARGETARCH
+ARG KUBECTL_VERSION=1.35.4
+ARG HELM_VERSION=3.17.2
+
+RUN curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl" -o /usr/local/bin/kubectl \
+    && chmod +x /usr/local/bin/kubectl
+
+RUN curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH}.tar.gz" | tar xz -C /tmp \
+    && mv /tmp/linux-${TARGETARCH}/helm /usr/local/bin/helm \
+    && rm -rf /tmp/linux-${TARGETARCH}
+
+RUN ln -s /usr/local/bin/kubectl /usr/local/bin/k \
+    && ln -s /usr/local/bin/helm /usr/local/bin/h
+
+RUN CILIUM_CLI_VERSION="$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)" \
+    && curl -L --fail --retry 3 \
+       "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${TARGETARCH}.tar.gz" \
+       -o /tmp/cilium.tar.gz \
+    && tar -xzf /tmp/cilium.tar.gz -C /usr/local/bin \
+    && rm /tmp/cilium.tar.gz \
+    && cilium version
+
+CMD ["/bin/bash"]

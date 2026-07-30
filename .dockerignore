@@ -1,0 +1,10 @@
+.pnpm-store
+.pnpm-store/
+node_modules
+.next
+out
+build
+ref
+.env*
+*.md
+.DS_Store

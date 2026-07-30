@@ -1,0 +1,12 @@
+{
+  "apiUrl": "https://api.kubehub.io",
+  "oidcConfig": {
+    "issuer": "https://login.kubehub.io/auth/realms/kubehub",
+    "clientId": "nestctl",
+    "redirectUri": "https://portal.kubehub.io/auth/callback"
+  },
+  "webShellConfig": {
+    "image": "ghcr.io/kubehub-io/webshell:20260616.8",
+    "specVersion": "1"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "Node Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+      "packages": "tmux jq htop curl"
+    },
+    "ghcr.io/devcontainers/features/common-utils":{},
+    "ghcr.io/devcontainers/features/node:latest":{},
+    "ghcr.io/jsburckhardt/devcontainer-features/opencode:1": {},
+    "ghcr.io/jsburckhardt/devcontainer-features/gitleaks:1":{},
+    "ghcr.io/iyaki/devcontainer-features/lefthook:2": {}
+  },
+  "customizations": {
+    "vscode":{
+      "extensions": [
+        "ms-vscode.vscode-typescript-next",
+        "github.vscode-pull-request-github",
+        "ms-vsliveserver.vsliveserver",
+        "eamoval.gitlens",
+        "ms-vscode.vscode-node-dev-package-installer"
+      ],
+      "settings": {
+      }
+    }
+  },
+
+  "onCreateCommand": "node --version",
+  "postCreateCommand": "echo 'Node environment ready!'"
+}
