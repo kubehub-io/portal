@@ -2,6 +2,9 @@ name: Build and publish Docker image (webshell)
 
 on:
   push:
+    branches:
+      - main
+      - master
     paths:
       - 'Dockerfile.webshell'
   pull_request:
