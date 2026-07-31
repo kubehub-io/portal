@@ -18,7 +18,7 @@ const DEFAULTS: AppConfig = {
     clientId: "",
   },
   webShellConfig: {
-    image: "ghcr.io/kubehub-io/webshell:20260616.8",
+    image: "ghcr.io/kubehub-io/portal-webshell:main-20260731-7",
     specVersion: "1",
   },
 }
