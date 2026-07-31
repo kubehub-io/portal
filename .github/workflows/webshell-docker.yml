@@ -70,7 +70,7 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           context: .
           file: ./Dockerfile           # use ./Dockerfile.webshell in the webshell workflow
-          push: true
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
           platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/${{ github.repository }}-webshell:${{ env.IMAGE_TAG }}
