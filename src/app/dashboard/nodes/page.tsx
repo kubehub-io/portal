@@ -332,8 +332,8 @@ export default function NodesPage() {
               <h4 className="font-semibold">1. Prepare the node</h4>
               <p className="text-muted-foreground">
                 The node must have a Linux OS installed. See{" "}
-                <a href="https://docs.kubehub.io/node_prepare" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
-                  docs.kubehub.io/node_prepare
+                <a href="https://docs.kubehub.io/how_to_onboard_node/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                  How to onboar node
                 </a>{" "}
                 for requirements.
               </p>
@@ -342,7 +342,10 @@ export default function NodesPage() {
               <h4 className="font-semibold">2. SSH and run the join command</h4>
               <p className="text-muted-foreground">SSH into the new node and run:</p>
               <pre className="rounded-md bg-muted px-3 py-2 text-xs whitespace-pre-wrap break-all">
-                <code>{`sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/kubehubcli/releases/download/latest/kubehubcli_Linux_x86_64`}</code>
+                <code>{`ARCH="$(uname -m | sed 's/aarch64/arm64/')"`}</code>
+              </pre>
+              <pre className="rounded-md bg-muted px-3 py-2 text-xs whitespace-pre-wrap break-all">
+                <code>{`sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/latest/cli_Linux_$(ARCH)`}</code>
               </pre>
               <pre className="rounded-md bg-muted px-3 py-2 text-xs whitespace-pre-wrap break-all">
                 <code>{`sudo chmod +x /usr/bin/kubehubcli`}</code>
