@@ -73,7 +73,7 @@ jobs:
         with:
           imageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}
           outputImageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}-noarch
-          publicTo: ${{ steps.publish-mode.outputs.public_to }}
+          publishTo: ${{ steps.publish-mode.outputs.public_to }}
 
       - name: Inspect the converted image
         if: ${{ steps.publish-mode.outputs.inspect_local == 'true' }}
