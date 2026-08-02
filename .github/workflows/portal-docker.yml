@@ -31,45 +31,52 @@ jobs:
           echo "REV=$REV" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=main-$DATE-$REV" >> "$GITHUB_ENV"
 
-      - name: Set up QEMU (for cross-platform emulation)
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: linux/amd64,linux/arm64
-
       - name: Set up Docker Buildx (multi-platform builder)
         id: buildx
         uses: docker/setup-buildx-action@v2
         with:
           install: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-      - name: Build project
-        run: npm run build --if-present
-
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image (multi-arch)
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v7
         with:
-          builder: ${{ steps.buildx.outputs.name }}
           context: .
-          file: ./Dockerfile           # use ./Dockerfile.webshell in the webshell workflow
-          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-          platforms: linux/amd64,linux/arm64
+          file: ./Dockerfile
+          push: false
+          load: true
           tags: |
             ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Set image publication mode
+        id: publish-mode
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/main" || "${GITHUB_REF}" == "refs/heads/master" ]]; then
+            echo "public_to=RemotePush" >> "$GITHUB_OUTPUT"
+            echo "inspect_local=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "public_to=OCIArchive:/tmp/portal-noarch.tar" >> "$GITHUB_OUTPUT"
+            echo "inspect_local=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Remove os/arch from image
+        uses: kubehub-io/image-volume@v0.3.1
+        with:
+          imageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}
+          outputImageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}-noarch
+          publishTo: ${{ steps.publish-mode.outputs.public_to }}
+
+      - name: Inspect the converted image
+        if: ${{ steps.publish-mode.outputs.inspect_local == 'true' }}
+        run: |
+          skopeo inspect "oci-archive:/tmp/portal-noarch.tar" \
+            --format 'architecture={{.Architecture}} os={{.Os}}'
