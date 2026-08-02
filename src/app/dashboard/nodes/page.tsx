@@ -345,7 +345,10 @@ export default function NodesPage() {
                 <code>{`ARCH="$(uname -m | sed 's/aarch64/arm64/')"`}</code>
               </pre>
               <pre className="rounded-md bg-muted px-3 py-2 text-xs whitespace-pre-wrap break-all">
-                <code>{`sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/latest/cli_Linux_$(ARCH)`}</code>
+                <code>{`VERSION="$(curl -fsSL https://api.github.com/repos/kubehub-io/cli/releases/latest | sed -n 's/.*"tag_name": "\(.*\)",/\1/p')"`}</code>
+              </pre>
+              <pre className="rounded-md bg-muted px-3 py-2 text-xs whitespace-pre-wrap break-all">
+                <code>{`sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/${VERSION}/cli_Linux_${ARCH}`}</code>
               </pre>
               <pre className="rounded-md bg-muted px-3 py-2 text-xs whitespace-pre-wrap break-all">
                 <code>{`sudo chmod +x /usr/bin/kubehubcli`}</code>
