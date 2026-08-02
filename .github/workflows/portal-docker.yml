@@ -56,8 +56,27 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Set image publication mode
+        id: publish-mode
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/main" || "${GITHUB_REF}" == "refs/heads/master" ]]; then
+            echo "public_to=RemotePush" >> "$GITHUB_OUTPUT"
+            echo "inspect_local=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "public_to=OCIArchive:/tmp/portal-noarch.tar" >> "$GITHUB_OUTPUT"
+            echo "inspect_local=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Remove os/arch from image
         uses: kubehub-io/image-volume@v0.3.1
         with:
           imageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}
           outputImageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}-noarch
+          publicTo: ${{ steps.publish-mode.outputs.public_to }}
+
+      - name: Inspect the converted image
+        if: ${{ steps.publish-mode.outputs.inspect_local == 'true' }}
+        run: |
+          skopeo inspect "oci-archive:/tmp/portal-noarch.tar" \
+            --format 'architecture={{.Architecture}} os={{.Os}}'
