@@ -57,7 +57,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Remove os/arch from image
-        uses: kubehub-io/image-volume@v0.3
+        uses: kubehub-io/image-volume@v0.3.1
         with:
           imageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}
           outputImageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}-noarch
