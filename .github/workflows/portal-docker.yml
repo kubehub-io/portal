@@ -49,22 +49,15 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-          platforms: linux/amd64,linux/arm64
+          push: false
+          load: true
           tags: |
             ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push Docker image (multi-arch)
-        uses: docker/build-push-action@v4
+      - name: Remove os/arch from image
+        uses: kubehub-io/image-volume@v0.3
         with:
-          builder: ${{ steps.buildx.outputs.name }}
-          context: .
-          file: ./Dockerfile           # use ./Dockerfile.webshell in the webshell workflow
-          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          imageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}
+          outputImageTag: ghcr.io/${{ github.repository }}:${{ env.IMAGE_TAG }}-noarch
