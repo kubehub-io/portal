@@ -213,7 +213,7 @@ export default function ClustersPage() {
                   <Label htmlFor="createIngressEnabled" className="cursor-pointer text-sm">Enable managed ingress</Label>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="createIngressEmail">Notification email</Label>
+                  <Label htmlFor="createIngressEmail">LetsEncrypt Notification email</Label>
                   <Input
                     id="createIngressEmail"
                     value={createIngressEmail}
