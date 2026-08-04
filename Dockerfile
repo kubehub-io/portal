@@ -7,6 +7,7 @@ RUN pnpm install --frozen-lockfile
 COPY ./ .
 RUN pnpm build
 
+# will be publish as image volume
 FROM scratch
-COPY --from=builder /app/out /usr/share/nginx/html
+COPY --from=builder /app/out /site
 COPY ./nginx.conf /config/nginx.conf
