@@ -8,5 +8,5 @@ COPY ./ .
 RUN pnpm build
 
 FROM scratch
-COPY --from=builder /app/out /usr/share/nginx/html
+COPY --from=builder /app/out /site
 COPY ./nginx.conf /config/nginx.conf
