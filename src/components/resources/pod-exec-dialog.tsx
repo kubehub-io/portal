@@ -101,6 +101,7 @@ export function PodExecDialog({ open, onOpenChange, namespace, podName }: PodExe
       <DialogContent
         className="flex flex-col gap-0 p-0 max-w-4xl h-[80vh] overflow-hidden"
         onOpenAutoFocus={(e) => e.preventDefault()}
+        resizable
       >
         <div className="flex items-center justify-between border-b px-6 py-4 shrink-0">
           <div>

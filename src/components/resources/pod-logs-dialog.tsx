@@ -78,7 +78,7 @@ export function PodLogsDialog({ open, onOpenChange, namespace, podName }: PodLog
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { stop() }; onOpenChange(v) }}>
-      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col" resizable>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Terminal className="h-4 w-4" />
