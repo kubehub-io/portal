@@ -17,21 +17,36 @@ export interface ExecSession {
   close: () => void
 }
 
+const SHELL_FALLBACKS = ["/bin/sh", "/bin/bash", "/bin/ash", "/bin/dash"]
+
 export function usePodExec({ namespace, podName, containerName, command }: UsePodExecOptions) {
   const wsRef = useRef<WebSocket | null>(null)
   const sessRef = useRef<ExecSession | null>(null)
   const [connected, setConnected] = useState(false)
+  const [execError, setExecError] = useState<string | null>(null)
   const onOutputRef = useRef<((text: string) => void) | null>(null)
+  const fallbackIndexRef = useRef(0)
+
+  const getCommand = useCallback(() => {
+    if (command) return command
+    const idx = fallbackIndexRef.current
+    if (idx >= SHELL_FALLBACKS.length) return null
+    return [SHELL_FALLBACKS[idx]]
+  }, [command])
+
+  const retryRef = useRef<(() => void) | null>(null)
 
   const connect = useCallback(() => {
     const cluster = useClusterStore.getState().activeCluster
     const token = useAuthStore.getState().accessToken
     if (!cluster || !token) return null
 
+    const cmds = getCommand()
+    if (!cmds) return null
+
     const host = `https://${cluster.status.publicDns}:8443`
     const url = new URL(`${host}/api/v1/namespaces/${namespace}/pods/${podName}/exec`)
 
-    const cmds = command ?? ["/bin/sh"]
     cmds.forEach((c) => url.searchParams.append("command", c))
     url.searchParams.set("stdin", "true")
     url.searchParams.set("stdout", "true")
@@ -54,6 +69,7 @@ export function usePodExec({ namespace, podName, containerName, command }: UsePo
     ws.onopen = () => {
       console.log("[usePodExec] connected")
       setConnected(true)
+      setExecError(null)
     }
     ws.onclose = (e) => {
       console.log("[usePodExec] closed", e.code, e.reason)
@@ -73,6 +89,15 @@ export function usePodExec({ namespace, podName, containerName, command }: UsePo
         onOutputRef.current?.(text)
       } else if (channel === 3) {
         console.error("Exec error:", text)
+        setExecError(text)
+        if (!command) {
+          const nextIdx = fallbackIndexRef.current + 1
+          fallbackIndexRef.current = nextIdx
+          if (nextIdx < SHELL_FALLBACKS.length) {
+            ws.close()
+            setTimeout(() => retryRef.current?.(), 200)
+          }
+        }
       }
     }
 
@@ -103,9 +128,14 @@ export function usePodExec({ namespace, podName, containerName, command }: UsePo
 
     sessRef.current = sess
     return sess
-  }, [namespace, podName, containerName, command])
+  }, [namespace, podName, containerName, command, getCommand])
 
   useEffect(() => {
+    retryRef.current = connect
+  }, [connect])
+
+  useEffect(() => {
+    fallbackIndexRef.current = 0
     connect()
     return () => {
       wsRef.current?.close()
@@ -115,5 +145,5 @@ export function usePodExec({ namespace, podName, containerName, command }: UsePo
   }, [connect])
 
   const getSession = useCallback(() => sessRef.current, [])
-  return { getSession, connected, onOutputRef }
+  return { getSession, connected, execError, onOutputRef }
 }

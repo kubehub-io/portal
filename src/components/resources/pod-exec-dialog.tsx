@@ -21,7 +21,7 @@ interface PodExecDialogProps {
 }
 
 export function PodExecDialog({ open, onOpenChange, namespace, podName }: PodExecDialogProps) {
-  const { connected, onOutputRef, getSession } = usePodExec({
+  const { connected, execError, onOutputRef, getSession } = usePodExec({
     namespace,
     podName,
   })
@@ -134,8 +134,8 @@ export function PodExecDialog({ open, onOpenChange, namespace, podName }: PodExe
         </div>
 
         <div className="flex items-center justify-between border-t px-6 py-3 shrink-0">
-          <span className="text-xs text-muted-foreground">
-            {connected ? "Connected" : "Connecting..."}
+          <span className="text-xs text-destructive">
+            {execError ? `Exec failed: ${execError}` : connected ? "Connected" : "Connecting..."}
           </span>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Close
