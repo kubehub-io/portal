@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { usePodExec } from "@/hooks/use-pod-exec"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, Terminal } from "lucide-react"
 import { Terminal as Xterm } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 
