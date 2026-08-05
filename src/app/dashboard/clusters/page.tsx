@@ -50,12 +50,12 @@ export default function ClustersPage() {
   const [region, setRegion] = useState("us-east-1")
   const [createIngressEnabled, setCreateIngressEnabled] = useState(true)
   const [createIngressEmail, setCreateIngressEmail] = useState("")
-  const [createStorageProfile, setCreateStorageProfile] = useState("longhorn")
+  const [createStorageProfile, setCreateStorageProfile] = useState("none")
   const [createError, setCreateError] = useState("")
   const [editCluster, setEditCluster] = useState<string | null>(null)
   const [editIngressEnabled, setEditIngressEnabled] = useState(true)
   const [editIngressEmail, setEditIngressEmail] = useState("")
-  const [editStorageProfile, setEditStorageProfile] = useState("longhorn")
+  const [editStorageProfile, setEditStorageProfile] = useState("none")
   const [editAppIngressCount, setEditAppIngressCount] = useState(0)
   const [editError, setEditError] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
@@ -95,7 +95,7 @@ export default function ClustersPage() {
       setRegion("us-east-1")
       setCreateIngressEnabled(true)
       setCreateIngressEmail("")
-      setCreateStorageProfile("longhorn")
+      setCreateStorageProfile("none")
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : "Failed to create cluster")
     }
@@ -218,7 +218,7 @@ export default function ClustersPage() {
                     id="createIngressEmail"
                     value={createIngressEmail}
                     onChange={(e) => setCreateIngressEmail(e.target.value)}
-                    placeholder="admin@example.com"
+                    placeholder="email from login will be used"
                     type="email"
                   />
                 </div>
@@ -238,14 +238,15 @@ export default function ClustersPage() {
                 </div>
                 {createStorageProfile === "longhorn" && (
                   <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
-                    <p className="font-medium">Longhorn strongly suggested</p>
-                    <p className="mt-1">When you need to move a pod or migrate a host, it is a fully managed process. No manual CSI configuration required.</p>
+                    <p className="font-medium">[Longhorn](https://longhorn.io) strongly suggested</p>
+                    <p className="mt-1">Your stateful pod can travel free across nodes, longhorn can handle your pod storage smoothly.</p>
+                    <p className="mt-1">When you have multiple node and want to migrate a node, just few click on the longhorn UI, you PersistentVolumes get moved, compare to manual copy files.</p>
                   </div>
                 )}
                 {createStorageProfile === "none" && (
                   <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-                    <p className="font-medium">You need to manage your own CSI</p>
-                    <p className="mt-1">If no CSI is configured, pods that require PersistentVolumes will not work.</p>
+                    <p className="font-medium">You need to manage your own Storage provider</p>
+                    <p className="mt-1">If no Storage provider is configured, pods that require PersistentVolumes will not work, lots of server software in kubernetes ecosystem rely on PersistentVolumes.</p>
                   </div>
                 )}
               </TabsContent>
@@ -304,7 +305,7 @@ export default function ClustersPage() {
                           setEditCluster(cluster.metadata.name)
                           setEditIngressEnabled(cluster.spec.managedIngressProfile?.enabled !== false)
                           setEditIngressEmail(cluster.spec.managedIngressProfile?.email ?? "")
-                          setEditStorageProfile(cluster.spec.storageProfile?.backend ?? "longhorn")
+                          setEditStorageProfile(cluster.spec.storageProfile?.backend ?? "none")
                           try {
                             const apps = await listAppIngresses(cluster.metadata.name)
                             setEditAppIngressCount(apps.length)

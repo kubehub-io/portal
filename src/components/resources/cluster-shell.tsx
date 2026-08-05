@@ -219,6 +219,28 @@ function ShellTerminal({
   }, [getSession, onOutputRef, doFit])
 
   useEffect(() => {
+    const el = terminalRef.current
+    if (!el) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.metaKey && !e.altKey) {
+        switch (e.key.toLowerCase()) {
+          case "w":
+          case "l":
+          case "a":
+          case "k":
+          case "u":
+            e.preventDefault()
+            break
+        }
+      }
+    }
+
+    el.addEventListener("keydown", handleKeyDown)
+    return () => el.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
+  useEffect(() => {
     if (!disconnected || !termRef.current) return
     termRef.current.write("\r\n\x1b[31mSession ended\x1b[0m\r\n")
   }, [disconnected])
