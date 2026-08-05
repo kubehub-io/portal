@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { usePodExec } from "@/hooks/use-pod-exec"
-import { Terminal } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { Terminal as Xterm } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 
@@ -110,18 +110,26 @@ export function PodExecDialog({ open, onOpenChange, namespace, podName }: PodExe
               Exec: {podName}
             </DialogTitle>
             <DialogDescription>
-              {namespace} / {podName}
-              {connected && (
-                <span className="ml-2 inline-flex items-center gap-1 text-xs text-green-500">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                  connected
-                </span>
-              )}
-            </DialogDescription>
-          </div>
-        </div>
+               {namespace} / {podName}
+               {connected && (
+                 <span className="ml-2 inline-flex items-center gap-1 text-xs text-green-500">
+                   <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                   connected
+                 </span>
+               )}
+             </DialogDescription>
+           </div>
+         </div>
 
-        <div className="flex flex-col flex-1 min-h-0">
+         <div className="flex items-start gap-2 px-6 py-2 text-xs text-amber-500 bg-amber-500/10 shrink-0">
+           <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+           <span>
+             Exec is not available for all pods. Distroless and some
+             minimal images may not have a shell installed.
+           </span>
+         </div>
+
+         <div className="flex flex-col flex-1 min-h-0">
           <div ref={terminalRef} className="flex-1 overflow-hidden rounded" />
         </div>
 
