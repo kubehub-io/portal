@@ -238,7 +238,11 @@ export default function ClustersPage() {
                 </div>
                 {createStorageProfile === "longhorn" && (
                   <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
-                    <p className="font-medium">[Longhorn](https://longhorn.io) strongly suggested</p>
+                    <p className="font-medium">
+                  <a href="https://longhorn.io" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                    Longhorn
+                  </a>{" "}strongly suggested
+                </p>
                     <p className="mt-1">Your stateful pod can travel free across nodes, longhorn can handle your pod storage smoothly.</p>
                     <p className="mt-1">When you have multiple node and want to migrate a node, just few click on the longhorn UI, you PersistentVolumes get moved, compare to manual copy files.</p>
                   </div>
@@ -475,7 +479,11 @@ export default function ClustersPage() {
               </div>
               {editStorageProfile === "longhorn" && (
                 <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
-                  <p className="font-medium">[Longhorn](https://longhorn.io) strongly suggested</p>
+                  <p className="font-medium">
+                    <a href="https://longhorn.io" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                      Longhorn
+                    </a>{" "}strongly suggested
+                  </p>
                   <p className="mt-1">Your stateful pod can travel free across nodes, longhorn can handle your pod storage smoothly.</p>
                   <p className="mt-1">When you have multiple node and want to migrate a node, just few click on the longhorn UI, you PersistentVolumes get moved, compare to manual copy files.</p>
                 </div>

@@ -341,8 +341,8 @@ export default function NodesPage() {
             <div className="space-y-1.5">
               <h4 className="font-semibold">2. SSH and run the join command</h4>
               <p className="text-muted-foreground">SSH into the new node and run:</p>
-              <pre className="rounded-md bg-muted px-3 py-2 text-xs whitespace-pre-wrap break-all">
-                <code>{`ARCH="$(uname -m | sed 's/aarch64/arm64')"
+              <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs">
+                <code className="whitespace-pre font-mono">{`ARCH="$(uname -m | sed 's/aarch64/arm64')"
 VERSION="$(curl -fsSL https://api.github.com/repos/kubehub-io/cli/releases/latest | sed -n 's/.*"tag_name": "\\(.*\\)",/\\1/p')"
 sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/\${VERSION}/cli_Linux_\${ARCH}
 sudo chmod +x /usr/bin/kubehubcli
