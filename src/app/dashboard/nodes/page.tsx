@@ -344,7 +344,7 @@ export default function NodesPage() {
               <pre className="rounded-md bg-muted px-3 py-2 text-xs whitespace-pre-wrap break-all">
                 <code>{`ARCH="$(uname -m | sed 's/aarch64/arm64')"
 VERSION="$(curl -fsSL https://api.github.com/repos/kubehub-io/cli/releases/latest | sed -n 's/.*"tag_name": "\\(.*\\)",/\\1/p')"
-sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/${VERSION}/cli_Linux_${ARCH}
+sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/\${VERSION}/cli_Linux_\${ARCH}
 sudo chmod +x /usr/bin/kubehubcli
 sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-name>"}`}</code>
               </pre>
