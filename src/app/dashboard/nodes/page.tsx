@@ -220,10 +220,17 @@ export default function NodesPage() {
         const node = item as unknown as MergedNode
         if (node.k8s) {
           const conditions = (node.k8s.status as Record<string, unknown>)?.conditions as
-            | Array<{ type: string; status: string }>
+            | Array<{ type: string; status: string; lastHeartbeatTime?: string }>
             | undefined
           const readyCond = conditions?.find((c) => c.type === "Ready")
-          if (readyCond?.status === "True") return <span className="text-xs text-green-600 font-medium">Ready</span>
+          if (readyCond?.status === "True") {
+            const lastHeartbeat = readyCond.lastHeartbeatTime ? new Date(readyCond.lastHeartbeatTime).getTime() : 0
+            const fiveMinutesAgo = Date.now() - 5 * 60 * 1000
+            if (lastHeartbeat < fiveMinutesAgo) {
+              return <span className="text-xs text-red-600 font-medium">Offline</span>
+            }
+            return <span className="text-xs text-green-600 font-medium">Ready</span>
+          }
           return readyCond ? <StatusBadge status={readyCond.status} /> : <StatusBadge status="Unknown" />
         }
         if (node.cp?.status?.ready) return <span className="text-xs text-green-600 font-medium">Ready</span>
@@ -333,7 +340,7 @@ export default function NodesPage() {
               <p className="text-muted-foreground">
                 The node must have a Linux OS installed. See{" "}
                 <a href="https://docs.kubehub.io/how_to_onboard_node/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
-                  How to onboar node
+                  How to onboard node
                 </a>{" "}
                 for requirements.
               </p>
