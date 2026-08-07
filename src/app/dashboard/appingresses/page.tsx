@@ -76,7 +76,21 @@ export default function AppIngressesPage() {
     staleTime: 30_000,
   })
 
-  const excluded = new Set(["default/kubernetes", "kube-system/metrics-server", "kube-system/kube-dns"])
+  const excluded = new Set([
+    "default/kubernetes",
+    "kube-system/metrics-server",
+    "kube-system/kube-dns",
+    "cert-manager/cert-manager",
+    "cert-manager/cert-manager-cainjector",
+    "cert-manager/cert-manager-webhook",
+    "cert-manager/certmgr-webhook-kubehub",
+    "longhorn-system/longhorn-admission-webhook",
+    "longhorn-system/longhorn-backend",
+    "longhorn-system/longhorn-frontend",
+    "longhorn-system/longhorn-recovery-backend",
+    "kube-system/cilium-enovy",
+    "kube-system/cilium-gateway-default",
+  ])
 
   const services = useMemo(() => {
     if (!servicesQuery.data?.items) return []
