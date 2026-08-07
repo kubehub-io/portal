@@ -88,7 +88,7 @@ export default function AppIngressesPage() {
     "longhorn-system/longhorn-backend",
     "longhorn-system/longhorn-frontend",
     "longhorn-system/longhorn-recovery-backend",
-    "kube-system/cilium-enovy",
+    "kube-system/cilium-envoy",
     "kube-system/cilium-gateway-default",
   ])
 
