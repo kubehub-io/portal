@@ -35,6 +35,7 @@ interface DataTableProps {
   onNamespaceChange?: (ns: string) => void
   namespaces?: string[]
   actions?: (item: Record<string, unknown>) => React.ReactNode
+  getRowClassName?: (item: Record<string, unknown>) => string | undefined
   currentPage?: number
   totalPages?: number
   onPageChange?: (page: number) => void
@@ -89,6 +90,7 @@ export function DataTable({
   onNamespaceChange,
   namespaces,
   actions,
+  getRowClassName,
   currentPage,
   totalPages,
   onPageChange,
@@ -150,7 +152,7 @@ export function DataTable({
               </TableRow>
             ) : (
               data.map((item, i) => (
-                <TableRow key={(item.metadata as Record<string, unknown>)?.uid as string ?? i}>
+                <TableRow key={(item.metadata as Record<string, unknown>)?.uid as string ?? i} className={getRowClassName?.(item)}>
                   {columns.map((col) => (
                     <TableCell key={col.key}>{renderCell(col, item)}</TableCell>
                   ))}
