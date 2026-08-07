@@ -336,7 +336,6 @@ function PricingSection() {
             </ul>
             <div className="pricing-coming">
               <p>Not ready yet.</p>
-              <p>In the meantime, consider <a href="#">donating</a> to support hosting.</p>
             </div>
           </div>
         </div>

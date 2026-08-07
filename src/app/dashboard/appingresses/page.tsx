@@ -45,6 +45,25 @@ interface K8sServiceItem {
   }
 }
 
+interface K8sHttpRoute {
+  metadata: { name: string; namespace: string; uid?: string }
+  spec: {
+    parentRefs?: Array<{ name?: string; namespace?: string; sectionName?: string; group?: string; kind?: string }>
+    hostnames?: string[]
+    rules?: Array<{
+      backendRefs?: Array<{ name?: string; namespace?: string; port?: number; group?: string; kind?: string }>
+    }>
+  }
+}
+
+interface UnofficialAppIngress {
+  official: false
+  metadata: { name: string }
+  spec: AppIngress["spec"]
+  status: AppIngress["status"]
+  _serviceIds: string[]
+}
+
 export default function AppIngressesPage() {
   const qc = useQueryClient()
   const activeCluster = useClusterStore((s) => s.activeCluster)
@@ -72,7 +91,19 @@ export default function AppIngressesPage() {
     queryKey: ["services-all", clusterDns],
     queryFn: () =>
       listClusterScopedResources<K8sServiceItem>(clusterDns!, { version: "v1", resource: "services" }),
-    enabled: false,
+    enabled: !!clusterDns && !isOffline,
+    staleTime: 30_000,
+  })
+
+  const httpRoutesQuery = useQuery({
+    queryKey: ["httproutes-all", clusterDns],
+    queryFn: () =>
+      listClusterScopedResources<K8sHttpRoute>(clusterDns!, {
+        group: "gateway.networking.k8s.io",
+        version: "v1",
+        resource: "httproutes",
+      }),
+    enabled: !!clusterDns && !isOffline,
     staleTime: 30_000,
   })
 
@@ -88,7 +119,7 @@ export default function AppIngressesPage() {
     "longhorn-system/longhorn-backend",
     "longhorn-system/longhorn-frontend",
     "longhorn-system/longhorn-recovery-backend",
-    "kube-system/cilium-enovy",
+    "kube-system/cilium-envoy",
     "kube-system/cilium-gateway-default",
   ])
 
@@ -101,6 +132,81 @@ export default function AppIngressesPage() {
         return nsCmp !== 0 ? nsCmp : a.metadata.name.localeCompare(b.metadata.name)
       })
   }, [servicesQuery.data])
+
+  const matchedHttpRoutes = useMemo(() => {
+    const matches: Array<{
+      hostname: string
+      serviceId: string
+      backend: { serviceName: string; namespace: string; port: number }
+    }> = []
+    for (const hr of httpRoutesQuery.data?.items ?? []) {
+      const parentRefOk = (hr.spec.parentRefs ?? []).some(
+        (p) => p.namespace === "kube-system" && p.name === "default" && p.sectionName === "kubehub-local-wildcard",
+      )
+      if (!parentRefOk) continue
+      const hostname = (hr.spec.hostnames ?? []).find((h) => h.endsWith(".mykube.app"))
+      if (!hostname) continue
+      for (const rule of hr.spec.rules ?? []) {
+        for (const ref of rule.backendRefs ?? []) {
+          if (ref.group && ref.group !== "core" && ref.group !== "") continue
+          if (ref.kind && ref.kind !== "Service") continue
+          if (!ref.name || !ref.port) continue
+          const namespace = ref.namespace ?? hr.metadata.namespace
+          matches.push({
+            hostname,
+            serviceId: `${namespace}/${ref.name}`,
+            backend: { serviceName: ref.name, namespace, port: ref.port },
+          })
+        }
+      }
+    }
+    return matches
+  }, [httpRoutesQuery.data])
+
+  const unofficialRows = useMemo(() => {
+    const serviceById = new Map(services.map((s) => [`${s.metadata.namespace}/${s.metadata.name}`, s]))
+    const rows: UnofficialAppIngress[] = []
+    const seen = new Set<string>()
+    for (const match of matchedHttpRoutes) {
+      if (!serviceById.has(match.serviceId)) continue
+      if (seen.has(match.serviceId)) continue
+      seen.add(match.serviceId)
+      rows.push({
+        official: false,
+        metadata: { name: match.hostname.replace(/\.mykube\.app$/, "") },
+        spec: {
+          serviceBackend: match.backend,
+          exposeToPublic: false,
+          exposeToLocal: true,
+          protocol: "HTTP",
+        },
+        status: { localDNS: match.hostname },
+        _serviceIds: [match.serviceId],
+      })
+    }
+    return rows
+  }, [matchedHttpRoutes, services])
+
+  const boundServiceIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const app of query.data ?? []) {
+      if (app.spec.serviceBackend) {
+        set.add(`${app.spec.serviceBackend.namespace}/${app.spec.serviceBackend.serviceName}`)
+      }
+      for (const route of Object.values(app.spec.routesByPrefix ?? {})) {
+        set.add(`${route.namespace}/${route.serviceName}`)
+      }
+    }
+    for (const row of unofficialRows) {
+      for (const id of row._serviceIds) set.add(id)
+    }
+    return set
+  }, [query.data, unofficialRows])
+
+  const tableData = useMemo(() => {
+    const official = (query.data ?? []).map((app) => ({ official: true, ...app }) as unknown as Record<string, unknown>)
+    return [...official, ...(unofficialRows as unknown as Record<string, unknown>[])]
+  }, [query.data, unofficialRows])
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<AppIngress | null>(null)
@@ -119,6 +225,16 @@ export default function AppIngressesPage() {
   const [newRouteServiceId, setNewRouteServiceId] = useState("")
   const [newRoutePort, setNewRoutePort] = useState("")
   const [routesExpanded, setRoutesExpanded] = useState(false)
+
+  const dialogServices = useMemo(() => {
+    const editSvcId = editTarget?.spec.serviceBackend
+      ? `${editTarget.spec.serviceBackend.namespace}/${editTarget.spec.serviceBackend.serviceName}`
+      : null
+    return services.filter((s) => {
+      const id = `${s.metadata.namespace}/${s.metadata.name}`
+      return !boundServiceIds.has(id) || id === editSvcId
+    })
+  }, [services, boundServiceIds, editTarget])
 
   const openCreate = useCallback(() => {
     setFormName("")
@@ -157,8 +273,8 @@ export default function AppIngressesPage() {
   }, [clusterDns, servicesQuery])
 
   const selectedService = useMemo(() => {
-    return services.find((s) => `${s.metadata.namespace}/${s.metadata.name}` === formServiceId)
-  }, [services, formServiceId])
+    return dialogServices.find((s) => `${s.metadata.namespace}/${s.metadata.name}` === formServiceId)
+  }, [dialogServices, formServiceId])
 
   const availablePorts = useMemo(() => {
     return selectedService?.spec.ports ?? []
@@ -181,8 +297,8 @@ export default function AppIngressesPage() {
   }
 
   const newRouteSelectedService = useMemo(() => {
-    return services.find((s) => `${s.metadata.namespace}/${s.metadata.name}` === newRouteServiceId)
-  }, [services, newRouteServiceId])
+    return dialogServices.find((s) => `${s.metadata.namespace}/${s.metadata.name}` === newRouteServiceId)
+  }, [dialogServices, newRouteServiceId])
 
   const newRouteAvailablePorts = useMemo(() => {
     return newRouteSelectedService?.spec.ports ?? []
@@ -255,7 +371,12 @@ export default function AppIngressesPage() {
     {
       key: "metadata.name",
       label: "Name",
-      render: (value: unknown) => <span className="text-xs font-medium">{String(value ?? "-")}</span>,
+      render: (value: unknown, item: Record<string, unknown>) => (
+        <span className="flex items-center gap-2 text-xs font-medium">
+          {String(value ?? "-")}
+          {item.official === false && <Badge variant="secondary">Unofficial</Badge>}
+        </span>
+      ),
     },
     {
       key: "spec.serviceBackend.serviceName",
@@ -309,6 +430,9 @@ export default function AppIngressesPage() {
       label: "Local DNS",
       render: (value: unknown, item: Record<string, unknown>) => {
         if (!value) return "-"
+        if (item.official === false) {
+          return <span className="text-xs font-mono text-muted-foreground">{String(value)}</span>
+        }
         const status = (item.status as Record<string, unknown>) as { programStatus?: { localDNS?: { programed?: boolean; message?: string } } } | undefined
         const programmed = status?.programStatus?.localDNS?.programed
         if (programmed) {
@@ -336,7 +460,9 @@ export default function AppIngressesPage() {
     {
       key: "actions",
       label: "",
-      render: (_value: unknown, item: Record<string, unknown>) => (
+      render: (_value: unknown, item: Record<string, unknown>) => {
+        if (item.official === false) return null
+        return (
         <div className="flex gap-1">
           <Button
             variant="ghost"
@@ -357,7 +483,8 @@ export default function AppIngressesPage() {
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
-      ),
+        )
+      },
     },
   ]
 
@@ -394,9 +521,10 @@ export default function AppIngressesPage() {
 
       <DataTable
         columns={columns}
-        data={(query.data ?? []) as unknown as Record<string, unknown>[]}
+        data={tableData}
         isLoading={query.isLoading}
         error={query.error}
+        getRowClassName={(item) => (item.official === false ? "bg-muted/40 text-muted-foreground" : undefined)}
       />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -419,10 +547,12 @@ export default function AppIngressesPage() {
                 </div>
               ) : services.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No services found in the cluster.</p>
+              ) : dialogServices.length === 0 ? (
+                <p className="text-sm text-muted-foreground">All services are already bound to an app ingress.</p>
               ) : (
                 <Select value={formServiceId} onValueChange={(v) => {
                   setFormServiceId(v)
-                  const svc = services.find((s) => `${s.metadata.namespace}/${s.metadata.name}` === v)
+                  const svc = dialogServices.find((s) => `${s.metadata.namespace}/${s.metadata.name}` === v)
                   setFormPort(pickDefaultPort(svc?.spec.ports))
                   if (!editTarget) setFormName(v.split("/")[1])
                 }}>
@@ -430,7 +560,7 @@ export default function AppIngressesPage() {
                     <SelectValue placeholder="Select a service" />
                   </SelectTrigger>
                   <SelectContent>
-                    {services.map((s) => (
+                    {dialogServices.map((s) => (
                       <SelectItem key={`${s.metadata.namespace}/${s.metadata.name}`} value={`${s.metadata.namespace}/${s.metadata.name}`}>
                         {s.metadata.namespace}/{s.metadata.name}
                       </SelectItem>
@@ -579,7 +709,7 @@ export default function AppIngressesPage() {
                         <SelectValue placeholder="Select a service" />
                       </SelectTrigger>
                       <SelectContent>
-                        {services.map((s) => (
+                        {dialogServices.map((s) => (
                           <SelectItem key={`${s.metadata.namespace}/${s.metadata.name}`} value={`${s.metadata.namespace}/${s.metadata.name}`}>
                             {s.metadata.namespace}/{s.metadata.name}
                           </SelectItem>
