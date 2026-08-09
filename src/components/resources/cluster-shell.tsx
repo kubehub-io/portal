@@ -101,6 +101,13 @@ export function ClusterShell() {
         )}
       </div>
 
+      <div className="border-b bg-muted/40 px-6 py-2 shrink-0">
+        <p className="text-xs text-muted-foreground">
+          Requires at least one node onboarded to the cluster to use this shell. Anything stored here lives
+          in a temporary shell pod and will be lost when the pod restarts — don&apos;t store important data in the shell.
+        </p>
+      </div>
+
       {phase === "ready" ? (
         <ShellTerminal
           key={sessionKey}
