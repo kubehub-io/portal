@@ -29,6 +29,11 @@ export default function RootLayout({
       <body className="min-h-full">
         <script
           dangerouslySetInnerHTML={{
+            __html: `(function(){var r=new XMLHttpRequest();r.open("GET","/scripts.html",true);r.onreadystatechange=function(){if(r.readyState===4&&r.status===200){var c=r.responseText.trim();if(c){var s=document.createElement("script");s.text=c;(document.head||document.documentElement).appendChild(s);}}};r.send();})()`,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem("theme");var r=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.classList.toggle("dark",r)}catch(e){}})()`,
           }}
         />
