@@ -29,7 +29,7 @@ export default function RootLayout({
       <body className="min-h-full">
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var r=new XMLHttpRequest();r.open("GET","/scripts.html",true);r.onreadystatechange=function(){if(r.readyState===4&&r.status===200){var c=r.responseText.trim();if(c){var s=document.createElement("script");s.text=c;(document.head||document.documentElement).appendChild(s);}}};r.send();})()`,
+            __html: `(function(){var r=new XMLHttpRequest();r.open("GET","/scripts.html",true);r.onreadystatechange=function(){if(r.readyState===4&&r.status===200){var d=document.createElement("div");d.innerHTML=r.responseText;var ls=d.getElementsByTagName("script");for(var i=0;i<ls.length;i++){var s=document.createElement("script");if(ls[i].src){s.src=ls[i].src;s.async=ls[i].async;}else{s.text=ls[i].text;}(document.head||document.documentElement).appendChild(s);}}};r.send();})()`,
           }}
         />
         <script
