@@ -43,7 +43,8 @@ function mockResponse(data: unknown): Response {
 
 function resolveMockItems(resource: string, namespace?: string): K8sResource[] {
   const { MOCK_RESOURCE_MAP } = loadK8sClientMockData()
-  const list = (MOCK_RESOURCE_MAP[resource] ?? []) as K8sResource[]
+  const resourceMap = MOCK_RESOURCE_MAP as Record<string, K8sResource[]>
+  const list = resourceMap[resource] ?? []
   if (!namespace) return list
   return list.filter((item) => item.metadata.namespace === namespace)
 }
