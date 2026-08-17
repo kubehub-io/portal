@@ -1,9 +1,6 @@
 import { useAuthStore } from "@/stores/auth-store"
 import { getMockTokenResponse, isMockModeEnabled } from "@/lib/auth/pkce"
-
-function loadK8sClientMockData() {
-  return require("./k8s-client.mockdata.ts") as typeof import("./k8s-client.mockdata.ts")
-}
+import { MOCK_RESOURCE_MAP } from "./k8s-client.mockdata"
 
 function getK8sHost(clusterDns: string): string {
   return `https://${clusterDns}:8443`
@@ -42,7 +39,6 @@ function mockResponse(data: unknown): Response {
 }
 
 function resolveMockItems(resource: string, namespace?: string): K8sResource[] {
-  const { MOCK_RESOURCE_MAP } = loadK8sClientMockData()
   const resourceMap = MOCK_RESOURCE_MAP as Record<string, K8sResource[]>
   const list = resourceMap[resource] ?? []
   if (!namespace) return list
@@ -116,7 +112,6 @@ async function k8sFetch(
   options: RequestInit = {},
 ): Promise<Response> {
   if (isMockModeEnabled()) {
-    const { MOCK_RESOURCE_MAP } = loadK8sClientMockData()
     ensureMockSession()
     const resourceMatches = path.match(/(?:\/api\/(?:v1|[A-Za-z0-9.-]+)|\/apis\/[^/]+\/[^/]+)\/(.+?)(?:\/|\?|$)/)
     const resourceName = resourceMatches?.[1] ?? "pods"
