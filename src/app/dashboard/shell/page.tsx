@@ -11,13 +11,13 @@ export default function ShellPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b px-6 py-4 shrink-0">
+      <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <Terminal className="h-5 w-5" />
+            <Terminal className="h-4 w-4" />
             <h2 className="text-2xl font-bold tracking-tight">Cluster Shell</h2>
           </div>
-          <p className="text-muted-foreground text-sm">
+          <p className="mt-1 text-muted-foreground text-sm leading-none">
             {activeCluster ? `${activeCluster.metadata.name} / shell` : "No active cluster"}
             {isOffline && (
               <Badge variant="warning" className="ml-2">Offline</Badge>
