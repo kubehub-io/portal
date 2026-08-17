@@ -79,10 +79,10 @@ export function ClusterShell() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b px-6 py-2 shrink-0">
-        <span className="text-xs text-muted-foreground shrink-0">Target node:</span>
+      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-1.5 text-xs shrink-0">
+        <span className="shrink-0 text-muted-foreground">Target node:</span>
         <Select value={selectedNode} onValueChange={setSelectedNode}>
-          <SelectTrigger className="h-7 text-xs w-56">
+          <SelectTrigger className="h-7 w-56 text-xs">
             <SelectValue placeholder="Auto (any node)" />
           </SelectTrigger>
           <SelectContent>
@@ -95,16 +95,12 @@ export function ClusterShell() {
           </SelectContent>
         </Select>
         {phase === "ready" && podNodeName && (
-          <span className="text-xs text-muted-foreground">
+          <span className="shrink-0 text-muted-foreground">
             → on <span className="font-mono">{podNodeName}</span>
           </span>
         )}
-      </div>
-
-      <div className="border-b bg-muted/40 px-6 py-2 shrink-0">
-        <p className="text-xs text-muted-foreground">
-          Requires at least one node onboarded to the cluster to use this shell. Anything stored here lives
-          in a temporary shell pod and will be lost when the pod restarts — don&apos;t store important data in the shell.
+        <p className="min-w-[16rem] flex-1 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+          Requires at least one node onboarded to the cluster to use this shell. Anything stored here lives in a temporary shell pod and will be lost when the pod restarts — don&apos;t store important data in the shell.
         </p>
       </div>
 
@@ -254,7 +250,7 @@ function ShellTerminal({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b px-6 py-3 shrink-0">
+      <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4" />
           <span className="text-sm font-medium">Cluster Shell — {podName}</span>
@@ -276,7 +272,7 @@ function ShellTerminal({
         </span>
       </div>
       <div className="relative flex flex-col flex-1 min-h-0">
-        <div ref={terminalRef} className="flex-1 overflow-hidden rounded" />
+        <div ref={terminalRef} className="flex-1 overflow-hidden rounded-sm" />
         {disconnected && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded">
             <div className="flex flex-col items-center gap-3">

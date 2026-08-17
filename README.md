@@ -24,6 +24,11 @@ pnpm build
 pnpm start
 ```
 
+## Test
+```
+NEXT_PUBLIC_USE_MOCKS=true pnpm run dev
+```
+
 ## Architecture
 
 - **No backend** — pure browser app, talks to kubehub(control-plane) API and Kubernetes(data-plane) API.

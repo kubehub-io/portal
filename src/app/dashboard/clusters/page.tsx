@@ -265,18 +265,18 @@ export default function ClustersPage() {
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="space-y-3">
         {clusters.map((cluster) => {
           const state = clusterState(cluster)
           return (
-            <Card key={cluster.metadata.name}>
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-base">{cluster.metadata.name}</CardTitle>
-                    <CardDescription>{cluster.spec.region}</CardDescription>
+            <Card key={cluster.metadata.name} className="border-muted/80">
+              <CardHeader className="px-4 py-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <CardTitle className="truncate text-base">{cluster.metadata.name}</CardTitle>
+                    <CardDescription className="mt-0.5">{cluster.spec.region}</CardDescription>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 self-end md:self-auto">
                     {state === "Stopped" && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -350,9 +350,9 @@ export default function ClustersPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
+              <CardContent className="px-4 pb-3 pt-0">
+                <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center justify-between gap-3 sm:gap-8">
                     <span className="text-muted-foreground">Status</span>
                     {state === "Failed" && cluster.status?.lastOperation?.error ? (
                       <Tooltip>
@@ -377,7 +377,7 @@ export default function ClustersPage() {
                     )}
                   </div>
                   {cluster.status?.publicDns && (
-                    <div className="flex justify-between">
+                    <div className="flex items-center justify-between gap-3 sm:gap-8">
                       <span className="text-muted-foreground">Endpoint</span>
                       <span className="text-xs font-mono">{cluster.status.publicDns}</span>
                     </div>

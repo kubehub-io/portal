@@ -1,9 +1,141 @@
 import { useAuthStore } from "@/stores/auth-store"
 import { getConfig } from "@/lib/config"
+import { getMockTokenResponse, isMockModeEnabled } from "@/lib/auth/pkce"
 import type { Cluster } from "@/stores/cluster-store"
+
+function loadControlPlaneMockData() {
+  return require("./control-plane.mockdata.ts") as typeof import("./control-plane.mockdata.ts")
+}
+
+function getMockControlPlaneState() {
+  const { MOCK_CLUSTERS, MOCK_NODES, MOCK_APP_INGRESSES } = loadControlPlaneMockData()
+  return {
+    clusters: [...MOCK_CLUSTERS] as Cluster[],
+    nodes: [...MOCK_NODES] as Node[],
+    appIngresses: [...MOCK_APP_INGRESSES] as AppIngress[],
+  }
+}
 
 let isRefreshing = false
 let refreshPromise: Promise<boolean> | null = null
+
+
+function ensureMockSession() {
+  const state = useAuthStore.getState()
+  if (!state.accessToken) {
+    const tokens = getMockTokenResponse()
+    state.setTokens({
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      idToken: tokens.id_token,
+      expiresIn: tokens.expires_in,
+    })
+  }
+}
+
+function asMockJsonResponse(data: unknown): Response {
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  })
+}
+
+function mockControlPlaneResponse(path: string, options: RequestInit = {}): Response {
+  const method = (options.method ?? "GET").toUpperCase()
+  if (method === "DELETE") {
+    return new Response(null, { status: 204 })
+  }
+
+  const clusterMatch = path.match(/\/apis\/v202607\/clusters\/([^/?]+)/)
+  const nodeMatch = path.match(/\/apis\/v202607\/clusters\/[^/?]+\/nodes(?:\/([^/?]+))?$/)
+  const ingressMatch = path.match(/\/apis\/v202607\/clusters\/[^/?]+\/appIngresses(?:\/([^/?]+))?$/)
+
+  const { MOCK_METADATA_REGIONS } = loadControlPlaneMockData()
+
+  if (path === "/apis/v202607/metadata") {
+    return asMockJsonResponse({ regions: MOCK_METADATA_REGIONS })
+  }
+
+  const mockState = getMockControlPlaneState()
+
+  if (path === "/apis/v202607/clusters") {
+    if (method === "POST") {
+      const body = options.body ? JSON.parse(String(options.body)) : {}
+      const name = body?.metadata?.name ?? `demo-cluster-${mockState.clusters.length + 1}`
+      const cluster: Cluster = {
+        apiVersion: "v202607",
+        kind: "Cluster",
+        metadata: { name, etag: `mock-etag-${Date.now()}` },
+        spec: body?.spec ?? {
+          region: "us-east",
+          network: { podCIDR: "10.50.0.0/16", serviceCIDR: "10.120.0.0/12" },
+        },
+        status: { publicDns: `${name}.kubehub.local`, state: "Creating" },
+      }
+      mockState.clusters.push(cluster)
+      return asMockJsonResponse(cluster)
+    }
+    return asMockJsonResponse(mockState.clusters)
+  }
+
+  if (clusterMatch && !path.includes("/nodes") && !path.includes("/appIngresses") && !path.includes("/downloadkubeconfig")) {
+    const name = clusterMatch[1]
+    const cluster = mockState.clusters.find((item) => item.metadata.name === decodeURIComponent(name)) ?? mockState.clusters[0]
+    if (method === "PUT") {
+      const body = options.body ? JSON.parse(String(options.body)) : {}
+      const patched = {
+        ...cluster,
+        metadata: { ...cluster.metadata, name: body?.metadata?.name ?? cluster.metadata.name },
+        spec: body?.spec ?? cluster.spec,
+      }
+      return asMockJsonResponse(patched)
+    }
+    return asMockJsonResponse(cluster)
+  }
+
+  if (path.includes("/downloadkubeconfig")) {
+    return asMockJsonResponse({
+      kubeconfig: `apiVersion: v1\nclusters:\n- cluster:\n    server: https://demo-cluster.kubehub.local:6443\n  name: demo-cluster\ncontexts:\n- context:\n    cluster: demo-cluster\n    user: demo-user\n  name: demo-cluster\ncurrent-context: demo-cluster\nkind: Config\nusers:\n- name: demo-user\n  user:\n    token: mock-access-token\n`,
+    })
+  }
+
+  if (nodeMatch) {
+    if (method === "POST") {
+      const body = options.body ? JSON.parse(String(options.body)) : {}
+      const node: Node = {
+        apiVersion: "v1",
+        kind: "Node",
+        metadata: { name: body?.metadata?.name ?? `node-${Date.now()}` },
+        spec: body?.spec ?? { meta: { ipv4: "10.0.0.99" } },
+        status: { ready: true },
+      }
+      mockState.nodes.push(node)
+      return asMockJsonResponse(node)
+    }
+    return asMockJsonResponse(mockState.nodes)
+  }
+
+  if (ingressMatch) {
+    if (method === "POST") {
+      const body = options.body ? JSON.parse(String(options.body)) : {}
+      const ingress: AppIngress = {
+        apiVersion: "v202607",
+        kind: "AppIngress",
+        metadata: { name: body?.metadata?.name ?? "mock-ingress" },
+        spec: body?.spec ?? { protocol: "HTTPS" },
+        status: {
+          publicDns: `${body?.metadata?.name ?? "mock-ingress"}.kubehub.local`,
+          state: "Pending",
+        },
+      }
+      mockState.appIngresses.push(ingress)
+      return asMockJsonResponse(ingress)
+    }
+    return asMockJsonResponse(mockState.appIngresses)
+  }
+
+  return asMockJsonResponse({ ok: true })
+}
 
 async function refreshAccessTokenOnce(): Promise<boolean> {
   if (isRefreshing && refreshPromise) {
@@ -21,6 +153,11 @@ async function refreshAccessTokenOnce(): Promise<boolean> {
 }
 
 async function authFetch(path: string, options: RequestInit = {}, isRetry = false): Promise<Response> {
+  if (isMockModeEnabled()) {
+    ensureMockSession()
+    return mockControlPlaneResponse(path, options)
+  }
+
   const { accessToken, clearTokens } = useAuthStore.getState()
   if (!accessToken) {
     clearTokens()
