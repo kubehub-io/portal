@@ -68,7 +68,7 @@ export const MOCK_NODES = [
     spec: {
       os: "Ubuntu",
       arch: "amd64",
-      meta: { ipv4: "10.0.0.11", labels: { role: "worker" } },
+      meta: { ipv4: "10.0.0.11", ciliumIp: "10.42.0.11", labels: { role: "worker" } },
       hardware: { cpus: [{ model: "Intel Xeon", cores: 8 }], memory: { total_in_mb: 32768 } },
     },
     status: {
@@ -83,7 +83,7 @@ export const MOCK_NODES = [
     spec: {
       os: "Ubuntu",
       arch: "amd64",
-      meta: { ipv4: "10.0.0.12", labels: { role: "worker" } },
+      meta: { ipv4: "10.0.0.12", ciliumIp: "10.42.0.12", labels: { role: "worker" } },
       hardware: { cpus: [{ model: "Intel Xeon", cores: 8 }], memory: { total_in_mb: 65536 } },
     },
     status: {

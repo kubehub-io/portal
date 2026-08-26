@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react"
 
-interface ColumnDef {
+export interface ColumnDef {
   key: string
   label: string
   width?: string

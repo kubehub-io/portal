@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { DataTable, StatusBadge, type ColumnDef } from "@/components/resources/data-table"
 import { useClusterStore } from "@/stores/cluster-store"
 import { listControlPlaneNodes, deleteNode } from "@/lib/api/control-plane"
 import { listClusterScopedResources, deleteK8sResource } from "@/lib/api/k8s-client"
@@ -48,6 +48,58 @@ function formatCores(cpus: unknown): string {
     total += cores
   }
   return String(total)
+}
+
+interface NodeAddress {
+  type: string
+  address: string
+}
+
+interface NodeCondition {
+  type: string
+  status: string
+  lastHeartbeatTime?: string
+  lastTransitionTime?: string
+  reason?: string
+  message?: string
+}
+
+function getAddresses(node: MergedNode): NodeAddress[] {
+  const addresses = (node.k8s?.status as Record<string, unknown>)?.addresses as NodeAddress[] | undefined
+  return addresses ?? []
+}
+
+function getPhysicalIp(node: MergedNode): string {
+  const internal = getAddresses(node).find((a) => a.type === "InternalIP")
+  if (internal) return internal.address
+  return node.cp?.spec?.meta?.ipv4 ?? "-"
+}
+
+function getCiliumIp(node: MergedNode): string {
+  const cilium = getAddresses(node).find((a) => a.type === "CiliumInternalIP")
+  if (cilium) return cilium.address
+  return node.cp?.spec?.meta?.ciliumIp ?? "-"
+}
+
+function getConditions(node: MergedNode): NodeCondition[] {
+  const conditions = (node.k8s?.status as Record<string, unknown>)?.conditions as NodeCondition[] | undefined
+  return conditions ?? []
+}
+
+function formatRelativeTime(value?: string): string {
+  if (!value) return "-"
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return value
+  const diff = Date.now() - d.getTime()
+  const totalSec = Math.max(0, Math.floor(diff / 1000))
+  const m = Math.floor(totalSec / 60)
+  const h = Math.floor(m / 60)
+  const d2 = Math.floor(h / 24)
+  const s = totalSec % 60
+  if (d2 > 0) return `${d2}d ${h % 24}h ago`
+  if (h > 0) return `${h}h ${m % 60}m ago`
+  if (m > 0) return `${m}m ${s}s ago`
+  return `${totalSec}s ago`
 }
 
 function detailRows(obj: Record<string, unknown>, prefix = ""): { label: string; value: string }[] {
@@ -165,6 +217,27 @@ export default function NodesPage() {
       ),
     },
     {
+      key: "ip",
+      label: "Node IP",
+      render: (_value: unknown, item: Record<string, unknown>) => {
+        const node = item as unknown as MergedNode
+        const physical = getPhysicalIp(node)
+        const cilium = getCiliumIp(node)
+        return (
+          <div className="space-y-1 py-1">
+            <div className="text-xs">
+              <span className="text-muted-foreground">Physical: </span>
+              <span className="font-mono">{physical}</span>
+            </div>
+            <div className="text-xs">
+              <span className="text-muted-foreground">Cilium: </span>
+              <span className="font-mono">{cilium}</span>
+            </div>
+          </div>
+        )
+      },
+    },
+    {
       key: "os",
       label: "OS",
       render: (_value: unknown, item: Record<string, unknown>) => {
@@ -235,6 +308,26 @@ export default function NodesPage() {
         }
         if (node.cp?.status?.ready) return <span className="text-xs text-green-600 font-medium">Ready</span>
         return <span className="text-xs text-muted-foreground">Not Connected</span>
+      },
+    },
+    {
+      key: "conditions",
+      label: "Conditions",
+      render: (_value: unknown, item: Record<string, unknown>) => {
+        const node = item as unknown as MergedNode
+        const conditions = getConditions(node)
+        if (conditions.length === 0) return <span className="text-xs text-muted-foreground">-</span>
+        return (
+          <div className="space-y-1 py-1">
+            {conditions.map((c) => (
+              <div key={c.type} className="flex items-center gap-1.5 text-xs">
+                <StatusBadge status={c.status} />
+                <span className="font-medium">{c.type}</span>
+                <span className="text-muted-foreground">({formatRelativeTime(c.lastTransitionTime ?? c.lastHeartbeatTime)})</span>
+              </div>
+            ))}
+          </div>
+        )
       },
     },
     {
@@ -324,7 +417,13 @@ export default function NodesPage() {
         </div>
       )}
 
-      <DataTable columns={columns} data={tableData} isLoading={isLoading && mergedNodes.length === 0} error={error} />
+      <NodeTable
+        key={activeCluster?.metadata.name ?? "none"}
+        columns={columns}
+        tableData={tableData}
+        isLoading={isLoading && mergedNodes.length === 0}
+        error={error}
+      />
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -487,5 +586,36 @@ sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+const NODES_PER_PAGE = 10
+
+function NodeTable({
+  columns,
+  tableData,
+  isLoading,
+  error,
+}: {
+  columns: ColumnDef[]
+  tableData: Record<string, unknown>[]
+  isLoading: boolean
+  error: Error | null
+}) {
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(tableData.length / NODES_PER_PAGE))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedData = tableData.slice((currentPage - 1) * NODES_PER_PAGE, currentPage * NODES_PER_PAGE)
+
+  return (
+    <DataTable
+      columns={columns}
+      data={paginatedData}
+      isLoading={isLoading}
+      error={error}
+      currentPage={currentPage}
+      totalPages={totalPages}
+      onPageChange={setPage}
+    />
   )
 }

@@ -52,6 +52,7 @@ export function ClusterShell() {
     enabled: !!activeCluster?.status.publicDns && isAuthenticated,
     refetchInterval: 30_000,
   })
+  const showNodeWarning = phase !== "ready" && (!nodes || nodes.length === 0)
 
   useEffect(() => {
     if (!startedRef.current) {
@@ -99,9 +100,11 @@ export function ClusterShell() {
             → on <span className="font-mono">{podNodeName}</span>
           </span>
         )}
-        <p className="min-w-[16rem] flex-1 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
-          Requires at least one node onboarded to the cluster to use this shell. Anything stored here lives in a temporary shell pod and will be lost when the pod restarts — don&apos;t store important data in the shell.
-        </p>
+        {showNodeWarning && (
+          <p className="min-w-[16rem] flex-1 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+            Requires at least one node onboarded to the cluster to use this shell. Anything stored here lives in a temporary shell pod and will be lost when the pod restarts — don&apos;t store important data in the shell.
+          </p>
+        )}
       </div>
 
       {phase === "ready" ? (

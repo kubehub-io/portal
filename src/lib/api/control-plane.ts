@@ -7,10 +7,20 @@ function loadControlPlaneMockData() {
   return require("./control-plane.mockdata.ts") as typeof import("./control-plane.mockdata.ts")
 }
 
+let mockClustersStore: Cluster[] | null = null
+
+function getMockClusters(): Cluster[] {
+  if (!mockClustersStore) {
+    const { MOCK_CLUSTERS } = loadControlPlaneMockData()
+    mockClustersStore = [...MOCK_CLUSTERS] as Cluster[]
+  }
+  return mockClustersStore
+}
+
 function getMockControlPlaneState() {
-  const { MOCK_CLUSTERS, MOCK_NODES, MOCK_APP_INGRESSES } = loadControlPlaneMockData()
+  const { MOCK_NODES, MOCK_APP_INGRESSES } = loadControlPlaneMockData()
   return {
-    clusters: [...MOCK_CLUSTERS] as Cluster[],
+    clusters: getMockClusters(),
     nodes: [...MOCK_NODES] as Node[],
     appIngresses: [...MOCK_APP_INGRESSES] as AppIngress[],
   }
@@ -43,6 +53,13 @@ function asMockJsonResponse(data: unknown): Response {
 function mockControlPlaneResponse(path: string, options: RequestInit = {}): Response {
   const method = (options.method ?? "GET").toUpperCase()
   if (method === "DELETE") {
+    const deleteClusterMatch = path.match(/\/apis\/v202607\/clusters\/([^/?]+)$/)
+    if (deleteClusterMatch) {
+      const name = decodeURIComponent(deleteClusterMatch[1])
+      const store = getMockClusters()
+      const idx = store.findIndex((c) => c.metadata.name === name)
+      if (idx >= 0) store.splice(idx, 1)
+    }
     return new Response(null, { status: 204 })
   }
 
@@ -61,7 +78,7 @@ function mockControlPlaneResponse(path: string, options: RequestInit = {}): Resp
   if (path === "/apis/v202607/clusters") {
     if (method === "POST") {
       const body = options.body ? JSON.parse(String(options.body)) : {}
-      const name = body?.metadata?.name ?? `demo-cluster-${mockState.clusters.length + 1}`
+      const name = body?.metadata?.name ?? `demo-cluster-${getMockClusters().length + 1}`
       const cluster: Cluster = {
         apiVersion: "v202607",
         kind: "Cluster",
@@ -72,10 +89,10 @@ function mockControlPlaneResponse(path: string, options: RequestInit = {}): Resp
         },
         status: { publicDns: `${name}.kubehub.local`, state: "Creating" },
       }
-      mockState.clusters.push(cluster)
+      getMockClusters().push(cluster)
       return asMockJsonResponse(cluster)
     }
-    return asMockJsonResponse(mockState.clusters)
+    return asMockJsonResponse(getMockClusters())
   }
 
   if (clusterMatch && !path.includes("/nodes") && !path.includes("/appIngresses") && !path.includes("/downloadkubeconfig")) {
@@ -325,6 +342,7 @@ export interface NodeMetadata {
 
 export interface NodeInfo {
   ipv4?: string
+  ciliumIp?: string
   labels?: Record<string, string>
 }
 
