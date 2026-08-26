@@ -92,6 +92,15 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       if (match) {
         saveActiveCluster(match)
         set({ activeCluster: match })
+      } else if (clusters.length > 0) {
+        // Active cluster was removed (e.g. deleted) — pick the next available one.
+        const next = clusters[0]
+        saveActiveCluster(next)
+        set({ activeCluster: next })
+      } else {
+        // No clusters left — clear the active selection.
+        saveActiveCluster(null)
+        set({ activeCluster: null })
       }
     } else if (clusters.length > 0) {
       const saved = loadActiveCluster()
