@@ -636,6 +636,9 @@ export default function AppIngressesPage() {
 
             <div className="space-y-2">
               <Label htmlFor="protocol">Protocol</Label>
+              <p className="text-xs text-muted-foreground">
+                The backend app talks HTTP internally; AppIngress terminates and exposes it publicly over HTTPS.
+              </p>
               <Select value={formProtocol} onValueChange={setFormProtocol}>
                 <SelectTrigger id="protocol">
                   <SelectValue />
