@@ -64,8 +64,30 @@ interface NodeCondition {
   message?: string
 }
 
+interface NodeInfo {
+  osImage?: string
+  architecture?: string
+  containerRuntimeVersion?: string
+  kernelVersion?: string
+  kubeletVersion?: string
+}
+
+interface NodeResource {
+  cpu?: string
+  memory?: string
+  disk?: string
+}
+
+function getStatusField(node: MergedNode): Record<string, unknown> | undefined {
+  return (node.k8s?.status as Record<string, unknown>) ?? undefined
+}
+
+function getSpecField(node: MergedNode): Record<string, unknown> | undefined {
+  return (node.k8s?.spec as Record<string, unknown>) ?? undefined
+}
+
 function getAddresses(node: MergedNode): NodeAddress[] {
-  const addresses = (node.k8s?.status as Record<string, unknown>)?.addresses as NodeAddress[] | undefined
+  const addresses = getStatusField(node)?.addresses as NodeAddress[] | undefined
   return addresses ?? []
 }
 
@@ -75,15 +97,45 @@ function getPhysicalIp(node: MergedNode): string {
   return node.cp?.spec?.meta?.ipv4 ?? "-"
 }
 
-function getCiliumIp(node: MergedNode): string {
-  const cilium = getAddresses(node).find((a) => a.type === "CiliumInternalIP")
-  if (cilium) return cilium.address
-  return node.cp?.spec?.meta?.ciliumIp ?? "-"
+function getCiliumCidr(node: MergedNode): string {
+  const podCIDR = getSpecField(node)?.podCIDR as string | undefined
+  if (podCIDR) return podCIDR
+  const podCIDRs = getSpecField(node)?.podCIDRs as string[] | undefined
+  if (podCIDRs && podCIDRs.length > 0) return podCIDRs.join(", ")
+  return "-"
+}
+
+function getNodeInfo(node: MergedNode): NodeInfo {
+  const info = getStatusField(node)?.nodeInfo as NodeInfo | undefined
+  if (info) return info
+  return { osImage: node.cp?.spec?.os, architecture: node.cp?.spec?.arch }
+}
+
+function getResource(node: MergedNode): NodeResource {
+  const capacity = getStatusField(node)?.capacity as Record<string, unknown> | undefined
+  if (capacity) {
+    return {
+      cpu: typeof capacity.cpu === "string" ? capacity.cpu : undefined,
+      memory: typeof capacity.memory === "string" ? formatMemory(capacity.memory) : undefined,
+      disk: typeof capacity["ephemeral-storage"] === "string" ? formatMemory(capacity["ephemeral-storage"]) : undefined,
+    }
+  }
+  const memMb = node.cp?.spec?.hardware?.memory?.total_in_mb
+  return {
+    cpu: formatCores(node.cp?.spec?.hardware?.cpus),
+    memory: memMb ? `${memMb} MiB` : undefined,
+  }
 }
 
 function getConditions(node: MergedNode): NodeCondition[] {
-  const conditions = (node.k8s?.status as Record<string, unknown>)?.conditions as NodeCondition[] | undefined
+  const conditions = getStatusField(node)?.conditions as NodeCondition[] | undefined
   return conditions ?? []
+}
+
+// Most conditions are healthy when True; pressure/availability conditions are healthy when False.
+function isConditionHealthy(cond: NodeCondition): boolean {
+  const falseIsHealthy = ["MemoryPressure", "DiskPressure", "PIDPressure", "NetworkUnavailable"].includes(cond.type)
+  return falseIsHealthy ? cond.status === "False" : cond.status === "True"
 }
 
 function formatRelativeTime(value?: string): string {
@@ -222,7 +274,7 @@ export default function NodesPage() {
       render: (_value: unknown, item: Record<string, unknown>) => {
         const node = item as unknown as MergedNode
         const physical = getPhysicalIp(node)
-        const cilium = getCiliumIp(node)
+        const cilium = getCiliumCidr(node)
         return (
           <div className="space-y-1 py-1">
             <div className="text-xs">
@@ -230,7 +282,7 @@ export default function NodesPage() {
               <span className="font-mono">{physical}</span>
             </div>
             <div className="text-xs">
-              <span className="text-muted-foreground">Cilium: </span>
+              <span className="text-muted-foreground">Cilium CIDR: </span>
               <span className="font-mono">{cilium}</span>
             </div>
           </div>
@@ -238,52 +290,35 @@ export default function NodesPage() {
       },
     },
     {
-      key: "os",
-      label: "OS",
+      key: "osarch",
+      label: "OS / Arch",
       render: (_value: unknown, item: Record<string, unknown>) => {
         const node = item as unknown as MergedNode
-        if (node.k8s) {
-          const os = (node.k8s.status as Record<string, unknown>)?.nodeInfo as Record<string, unknown> | undefined
-          return <span className="text-xs">{String(os?.osImage ?? "-")}</span>
-        }
-        return <span className="text-xs">{String(node.cp?.spec?.os ?? "-")}</span>
+        const info = getNodeInfo(node)
+        return (
+          <div className="space-y-1 py-1 text-xs">
+            <div><span className="text-muted-foreground">OS: </span>{String(info.osImage ?? "-")}</div>
+            <div><span className="text-muted-foreground">Arch: </span>{String(info.architecture ?? "-")}</div>
+            <div><span className="text-muted-foreground">Runtime: </span>{String(info.containerRuntimeVersion ?? "-")}</div>
+            <div><span className="text-muted-foreground">Kernel: </span>{String(info.kernelVersion ?? "-")}</div>
+            <div><span className="text-muted-foreground">Kubelet: </span>{String(info.kubeletVersion ?? "-")}</div>
+          </div>
+        )
       },
     },
     {
-      key: "arch",
-      label: "Arch",
+      key: "resource",
+      label: "Resource",
       render: (_value: unknown, item: Record<string, unknown>) => {
         const node = item as unknown as MergedNode
-        if (node.k8s) {
-          const arch = (node.k8s.status as Record<string, unknown>)?.nodeInfo as Record<string, unknown> | undefined
-          return <span className="text-xs">{String(arch?.architecture ?? "-")}</span>
-        }
-        return <span className="text-xs">{String(node.cp?.spec?.arch ?? "-")}</span>
-      },
-    },
-    {
-      key: "cpu",
-      label: "CPU",
-      render: (_value: unknown, item: Record<string, unknown>) => {
-        const node = item as unknown as MergedNode
-        if (node.k8s) {
-          const cap = (node.k8s.status as Record<string, unknown>)?.capacity as Record<string, unknown> | undefined
-          return <span className="text-xs">{String(cap?.cpu ?? "-")}</span>
-        }
-        return <span className="text-xs">{formatCores(node.cp?.spec?.hardware?.cpus)}</span>
-      },
-    },
-    {
-      key: "memory",
-      label: "Memory",
-      render: (_value: unknown, item: Record<string, unknown>) => {
-        const node = item as unknown as MergedNode
-        if (node.k8s) {
-          const cap = (node.k8s.status as Record<string, unknown>)?.capacity as Record<string, unknown> | undefined
-          return <span className="text-xs">{formatMemory(cap?.memory)}</span>
-        }
-        const memMb = node.cp?.spec?.hardware?.memory?.total_in_mb
-        return <span className="text-xs">{memMb ? `${memMb} MiB` : "-"}</span>
+        const res = getResource(node)
+        return (
+          <div className="space-y-1 py-1 text-xs">
+            <div><span className="text-muted-foreground">CPU: </span>{String(res.cpu ?? "-")}</div>
+            <div><span className="text-muted-foreground">Mem: </span>{String(res.memory ?? "-")}</div>
+            <div><span className="text-muted-foreground">Disk: </span>{String(res.disk ?? "-")}</div>
+          </div>
+        )
       },
     },
     {
@@ -319,13 +354,19 @@ export default function NodesPage() {
         if (conditions.length === 0) return <span className="text-xs text-muted-foreground">-</span>
         return (
           <div className="space-y-1 py-1">
-            {conditions.map((c) => (
-              <div key={c.type} className="flex items-center gap-1.5 text-xs">
-                <StatusBadge status={c.status} />
-                <span className="font-medium">{c.type}</span>
-                <span className="text-muted-foreground">({formatRelativeTime(c.lastTransitionTime ?? c.lastHeartbeatTime)})</span>
-              </div>
-            ))}
+            {conditions.map((c) => {
+              const healthy = isConditionHealthy(c)
+              const ts = healthy
+                ? c.lastHeartbeatTime ?? c.lastTransitionTime
+                : c.lastTransitionTime ?? c.lastHeartbeatTime
+              return (
+                <div key={c.type} className="flex items-center gap-1.5 text-xs">
+                  <Badge variant={healthy ? "success" : "destructive"} className="text-[10px]">{c.status}</Badge>
+                  <span className="font-medium">{c.type}</span>
+                  <span className="text-muted-foreground">({formatRelativeTime(ts)})</span>
+                </div>
+              )
+            })}
           </div>
         )
       },
@@ -363,10 +404,6 @@ export default function NodesPage() {
 
   const tableData = mergedNodes.map((n) => ({
     ...n,
-    os: "",
-    arch: "",
-    cpu: "",
-    memory: "",
     status: "",
     annotations: "",
   })) as unknown as Record<string, unknown>[]
