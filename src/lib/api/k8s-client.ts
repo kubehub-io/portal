@@ -106,6 +106,25 @@ export interface ResourceDescriptor {
   resource: string
 }
 
+async function extractErrorDetail(res: Response): Promise<string> {
+  const statusText = res.statusText || `HTTP ${res.status}`
+  try {
+    const text = await res.text()
+    if (!text) return statusText
+    try {
+      const json = JSON.parse(text) as { message?: string }
+      if (json && typeof json.message === "string" && json.message) {
+        return json.message
+      }
+    } catch {
+      // response is not JSON, fall back to raw text
+    }
+    return text
+  } catch {
+    return statusText
+  }
+}
+
 async function k8sFetch(
   clusterDns: string,
   path: string,
@@ -296,7 +315,10 @@ export async function createK8sResource<T = K8sResource>(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`Failed to create ${desc.resource}: ${res.statusText}`)
+  if (!res.ok) {
+    const detail = await extractErrorDetail(res)
+    throw new Error(`Failed to create ${desc.resource}: ${detail}`)
+  }
   return res.json()
 }
 
@@ -323,7 +345,10 @@ export async function updateK8sResource<T = K8sResource>(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`Failed to update ${desc.resource}/${name}: ${res.statusText}`)
+  if (!res.ok) {
+    const detail = await extractErrorDetail(res)
+    throw new Error(`Failed to update ${desc.resource}/${name}: ${detail}`)
+  }
   return res.json()
 }
 

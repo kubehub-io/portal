@@ -33,9 +33,31 @@ const DialogContent = React.forwardRef<
   const [size, setSize] = React.useState<{
     width?: number
     height?: number
-  }>({})
+  } | null>(null)
   const [isDragging, setIsDragging] = React.useState(false)
   const dragStart = React.useRef({ x: 0, y: 0, w: 0, h: 0 })
+  const innerRef = React.useRef<HTMLDivElement>(null)
+
+  const setRefs = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      innerRef.current = node
+      if (typeof ref === "function") ref(node)
+      else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node
+    },
+    [ref],
+  )
+
+  // When resizable, capture the natural size once so the dialog starts at its
+  // current dimensions and can then be freely resized by the user. Clamp to the
+  // viewport so the dialog (and its resize handle) never goes off-screen.
+  React.useLayoutEffect(() => {
+    if (resizable && innerRef.current && size === null) {
+      setSize({
+        width: Math.min(innerRef.current.offsetWidth, window.innerWidth - 40),
+        height: Math.min(innerRef.current.offsetHeight, window.innerHeight - 40),
+      })
+    }
+  }, [resizable, size])
 
   const onResizeMouseDown = React.useCallback(
     (e: React.MouseEvent) => {
@@ -83,15 +105,15 @@ const DialogContent = React.forwardRef<
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
-        ref={ref}
-className={cn(
-	           "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
-	           className,
-	           resizable && "resize-none max-w-none",
-	         )}
+        ref={setRefs}
+        className={cn(
+          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+          className,
+          resizable && "resize-none overflow-hidden",
+        )}
         style={
-          size.width
-            ? { width: size.width, height: size.height }
+          size?.width
+            ? { width: size.width, height: size.height, maxWidth: "none", maxHeight: "none" }
             : undefined
         }
         {...props}
