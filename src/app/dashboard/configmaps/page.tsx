@@ -3,23 +3,13 @@
 import { DataTable } from "@/components/resources/data-table"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
-import { useState, useCallback } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { updateK8sResource } from "@/lib/api/k8s-client"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Pencil, Loader2 } from "lucide-react"
-import * as yaml from "js-yaml"
+import { useState } from "react"
+import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
+import { type ResourceDescriptor } from "@/lib/api/k8s-client"
+
+const CONFIGMAP_DESC: ResourceDescriptor = { version: "v1", resource: "configmaps" }
 
 export default function ConfigMapsPage() {
-  const qc = useQueryClient()
   const activeCluster = useClusterStore((s) => s.activeCluster)
   const clusterDns = activeCluster?.status.publicDns
   const [namespace, setNamespace] = useState("__all")
@@ -31,56 +21,7 @@ export default function ConfigMapsPage() {
     items = items.filter((i) => (i.metadata as Record<string, unknown>)?.namespace === namespace)
   }
 
-  const [editTarget, setEditTarget] = useState<Record<string, unknown> | null>(null)
-  const [yamlValue, setYamlValue] = useState("")
-  const [yamlError, setYamlError] = useState("")
-
-  const openEditor = useCallback((item: Record<string, unknown>) => {
-    const cleaned = JSON.parse(JSON.stringify(item))
-    if (cleaned.metadata) {
-      const keep = new Set(["name", "namespace", "labels", "annotations", "resourceVersion"])
-      for (const key of Object.keys(cleaned.metadata)) {
-        if (!keep.has(key)) delete cleaned.metadata[key]
-      }
-    }
-    setEditTarget(item)
-    setYamlValue(yaml.dump(cleaned, { indent: 2, noRefs: true }))
-    setYamlError("")
-  }, [])
-
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      if (!editTarget || !clusterDns) throw new Error("No target or cluster")
-      const meta = editTarget.metadata as Record<string, string>
-      const namespace = meta.namespace || null
-      const name = meta.name
-      const parsed = yaml.load(yamlValue) as Record<string, unknown>
-      if (!parsed || typeof parsed !== "object") throw new Error("Invalid YAML")
-      return updateK8sResource(clusterDns, namespace, { version: "v1", resource: "configmaps" }, name, parsed)
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["configmaps"] })
-      setEditTarget(null)
-    },
-    onError: (err) => {
-      setYamlError(err instanceof Error ? err.message : "Update failed")
-    },
-  })
-
-  const handleSave = () => {
-    setYamlError("")
-    try {
-      const parsed = yaml.load(yamlValue)
-      if (!parsed || typeof parsed !== "object") {
-        setYamlError("Invalid YAML: must be a valid object")
-        return
-      }
-    } catch (e) {
-      setYamlError(`Invalid YAML: ${e instanceof Error ? e.message : "parse error"}`)
-      return
-    }
-    updateMutation.mutate()
-  }
+  const [editTarget, setEditTarget] = useState<{ name: string; namespace?: string } | null>(null)
 
   const columns = [
     { key: "metadata.name", label: "Name" },
@@ -113,48 +54,27 @@ export default function ConfigMapsPage() {
         onNamespaceChange={setNamespace}
         namespaces={namespaces}
         actions={(item) => (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => openEditor(item)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
+          <EditResourceButton
+            onClick={() =>
+              setEditTarget({
+                name: (item.metadata as Record<string, string>).name,
+                namespace: (item.metadata as Record<string, string>).namespace,
+              })
+            }
+          />
         )}
       />
 
-      <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) { setEditTarget(null); setYamlError("") } }}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Edit ConfigMap</DialogTitle>
-            <DialogDescription>
-              {(editTarget?.metadata as Record<string, string>)?.name ?? ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <textarea
-              className="w-full h-96 rounded-md border bg-muted p-4 font-mono text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={yamlValue}
-              onChange={(e) => setYamlValue(e.target.value)}
-            />
-            {yamlError && (
-              <p className="text-sm text-destructive">{yamlError}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setEditTarget(null); setYamlError("") }}>Cancel</Button>
-            <Button onClick={handleSave} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ResourceYamlEditDialog
+        open={!!editTarget}
+        onOpenChange={(o) => { if (!o) setEditTarget(null) }}
+        clusterDns={clusterDns ?? ""}
+        desc={CONFIGMAP_DESC}
+        name={editTarget?.name ?? ""}
+        namespace={editTarget?.namespace}
+        queryKey="configmaps"
+        title="Edit ConfigMap"
+      />
     </div>
   )
 }

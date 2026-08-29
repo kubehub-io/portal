@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useClusterStore } from "@/stores/cluster-store"
 import { getK8sResource, createK8sResource, updateK8sResource, type ResourceDescriptor } from "@/lib/api/k8s-client"
-import { useState, useRef } from "react"
+import { useState, useRef, useCallback } from "react"
 import { Upload, Link, Loader2, CheckCircle, XCircle, FileText } from "lucide-react"
 import * as yaml from "js-yaml"
+import { YamlEditor } from "@/components/yaml/yaml-editor"
 
 interface ApplyResult {
   name: string
@@ -52,7 +53,20 @@ export default function ApplyPage() {
   const [applying, setApplying] = useState(false)
   const [fetchingUrl, setFetchingUrl] = useState(false)
   const [error, setError] = useState("")
+  const [yamlError, setYamlError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"editor" | "url">("editor")
+
+  const handleEditorChange = useCallback((next: string) => {
+    setYamlInput(next)
+    if (yamlError) {
+      try {
+        yaml.loadAll(next)
+        setYamlError(null)
+      } catch {
+        /* keep error */
+      }
+    }
+  }, [yamlError])
 
   async function applyYAML(yamlStr: string) {
     setError("")
@@ -99,7 +113,9 @@ export default function ApplyPage() {
 
       setResults(res)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+      setYamlError(msg)
     } finally {
       setApplying(false)
     }
@@ -198,22 +214,24 @@ export default function ApplyPage() {
       )}
 
       <div className="space-y-2">
-        <textarea
-          className="w-full h-80 rounded-md border bg-muted p-4 font-mono text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          placeholder="Paste your YAML here..."
+        <YamlEditor
           value={yamlInput}
-          onChange={(e) => setYamlInput(e.target.value)}
+          onChange={handleEditorChange}
+          height="24rem"
         />
+        {yamlError && (
+          <p className="text-sm text-destructive">{yamlError}</p>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
-        <Button onClick={handleApply} disabled={applying || !yamlInput.trim() || !clusterDns}>
+        <Button onClick={handleApply} disabled={applying || !yamlInput.trim() || !clusterDns || !!yamlError}>
           {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {applying ? "Applying..." : "Apply"}
         </Button>
       </div>
 
-      {error && (
+      {error && !yamlError && (
         <div className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">
           {error}
         </div>
