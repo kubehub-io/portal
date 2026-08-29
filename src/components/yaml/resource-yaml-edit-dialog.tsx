@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import * as yaml from "js-yaml"
 import { getK8sResource, updateK8sResource, type ResourceDescriptor } from "@/lib/api/k8s-client"
@@ -77,11 +77,17 @@ export function ResourceYamlEditDialog({
     onError: (err) => setLoadError(err instanceof Error ? err.message : "Failed to load resource"),
   })
 
+  const mutateRef = useRef(loadMutation.mutate)
+
+  useEffect(() => {
+    mutateRef.current = loadMutation.mutate
+  }, [loadMutation])
+
   useEffect(() => {
     if (open) {
-      loadMutation.mutate()
+      mutateRef.current()
     }
-  }, [open, loadMutation])
+  }, [open])
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -125,28 +131,31 @@ export function ResourceYamlEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{title ?? `Edit ${desc.resource}`}</DialogTitle>
-          <DialogDescription>
-            <code className="rounded bg-muted px-1">{name}</code>
-            {namespace ? <> in <code className="rounded bg-muted px-1">{namespace}</code></> : null}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="!w-[60vw] !h-[70vh] !max-w-none" resizable>
+        <div className="flex h-full min-h-0 flex-col gap-4">
+          <DialogHeader>
+            <DialogTitle>{title ?? `Edit ${desc.resource}`}</DialogTitle>
+            <DialogDescription>
+              <code className="rounded bg-muted px-1">{name}</code>
+              {namespace ? <> in <code className="rounded bg-muted px-1">{namespace}</code></> : null}
+            </DialogDescription>
+          </DialogHeader>
 
-        {loadError ? (
-          <div className="rounded-md border border-destructive/50 p-3 text-sm text-destructive">{loadError}</div>
-        ) : loadMutation.isPending ? (
-          <div className="flex h-[28rem] items-center justify-center rounded-md border text-sm text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
+          <div className="flex-1 min-h-0">
+            {loadError ? (
+              <div className="flex h-full items-center overflow-auto rounded-md border border-destructive/50 p-3 text-sm text-destructive">{loadError}</div>
+            ) : loadMutation.isPending ? (
+              <div className="flex h-full items-center justify-center rounded-md border text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
+            ) : (
+              <YamlEditor value={value} onChange={handleChange} height="100%" />
+            )}
           </div>
-        ) : (
-          <YamlEditor value={value} onChange={handleChange} height="28rem" />
-        )}
 
-        {parseError && <p className="text-sm text-destructive">{parseError}</p>}
+          {parseError && <p className="text-sm text-destructive">{parseError}</p>}
 
-        <DialogFooter>
+          <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateMutation.isPending}>
             Cancel
           </Button>
@@ -161,6 +170,7 @@ export function ResourceYamlEditDialog({
             )}
           </Button>
         </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )
