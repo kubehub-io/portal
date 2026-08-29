@@ -40,6 +40,16 @@ function clusterState(cluster: { status?: { state?: string } }): string {
   return cluster.status?.state || "Provisioning"
 }
 
+const RECONCILE_STUCK_THRESHOLD_MS = 20 * 60 * 1000
+
+function isReconcileStuck(cluster: { status?: { lastOperation?: { operationName?: string; startedOn?: string } } }): boolean {
+  const { lastOperation } = cluster.status ?? {}
+  if (lastOperation?.operationName !== "reconcile" || !lastOperation.startedOn) return false
+  const started = Date.parse(lastOperation.startedOn)
+  if (Number.isNaN(started)) return false
+  return Date.now() - started > RECONCILE_STUCK_THRESHOLD_MS
+}
+
 export default function ClustersPage() {
   const { clusters, isLoading, error } = useClusters()
   const createCluster = useCreateCluster()
@@ -297,7 +307,7 @@ export default function ClustersPage() {
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" onClick={() => handleReconcile(cluster.metadata.name)} disabled={reconcileCluster.isPending || state === "Reconciling"}>
+                        <Button variant="ghost" size="icon" onClick={() => handleReconcile(cluster.metadata.name)} disabled={reconcileCluster.isPending || (state === "Reconciling" && !isReconcileStuck(cluster))}>
                           <RefreshCw className={`h-4 w-4 ${reconcileCluster.isPending ? "animate-spin" : ""}`} />
                         </Button>
                       </TooltipTrigger>
