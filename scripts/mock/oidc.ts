@@ -36,6 +36,13 @@ function tokenResponse(issuer: string, clientId: string) {
   }
 }
 
+function safeRedirectUri(redirectUri: string | null): string {
+  if (!redirectUri) return "/"
+  if (!redirectUri.startsWith("/")) return "/"
+  if (redirectUri.startsWith("//")) return "/"
+  return redirectUri
+}
+
 function redirectUrl(redirectUri: string, state: string | null): string {
   const sep = redirectUri.includes("?") ? "&" : "?"
   return `${redirectUri}${sep}code=mock-code&state=${state ?? ""}`
@@ -65,7 +72,7 @@ export function oidcHandler(issuer: URL): Handler {
     }
 
     if (path === `${base}/protocol/openid-connect/auth` && method === "GET") {
-      const redirectUri = url.searchParams.get("redirect_uri") ?? "/"
+      const redirectUri = safeRedirectUri(url.searchParams.get("redirect_uri"))
       res.writeHead(302, { Location: redirectUrl(redirectUri, url.searchParams.get("state")) })
       return res.end()
     }
