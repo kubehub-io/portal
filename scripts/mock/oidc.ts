@@ -36,18 +36,9 @@ function tokenResponse(issuer: string, clientId: string) {
   }
 }
 
-function safeRedirectUri(redirectUri: string | null): string {
+function validatedRedirectUri(redirectUri: string | null, allowedRedirectUris: ReadonlySet<string>): string {
   if (!redirectUri) return "/"
-  if (!redirectUri.startsWith("/")) return "/"
-  if (redirectUri.startsWith("//")) return "/"
-  return redirectUri
-}
-
-const ALLOWED_REDIRECT_URIS = new Set<string>(["/", "/callback"])
-
-function validatedRedirectUri(redirectUri: string | null): string {
-  const safeUri = safeRedirectUri(redirectUri)
-  return ALLOWED_REDIRECT_URIS.has(safeUri) ? safeUri : "/"
+  return allowedRedirectUris.has(redirectUri) ? redirectUri : "/"
 }
 
 function redirectUrl(redirectUri: string, state: string | null): string {
@@ -55,7 +46,7 @@ function redirectUrl(redirectUri: string, state: string | null): string {
   return `${redirectUri}${sep}code=mock-code&state=${state ?? ""}`
 }
 
-export function oidcHandler(issuer: URL): Handler {
+export function oidcHandler(issuer: URL, allowedRedirectUris: ReadonlySet<string>): Handler {
   const base = issuer.pathname.replace(/\/+$/, "")
   const issuerStr = issuer.toString().replace(/\/+$/, "")
   const clientId = "publicClient"
@@ -79,7 +70,7 @@ export function oidcHandler(issuer: URL): Handler {
     }
 
     if (path === `${base}/protocol/openid-connect/auth` && method === "GET") {
-      const redirectUri = validatedRedirectUri(url.searchParams.get("redirect_uri"))
+      const redirectUri = validatedRedirectUri(url.searchParams.get("redirect_uri"), allowedRedirectUris)
       res.writeHead(302, { Location: redirectUrl(redirectUri, url.searchParams.get("state")) })
       return res.end()
     }
