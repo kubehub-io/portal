@@ -90,7 +90,7 @@ export default function AppIngressesPage() {
   const servicesQuery = useQuery({
     queryKey: ["services-all", clusterDns],
     queryFn: () =>
-      listClusterScopedResources<K8sServiceItem>(clusterDns!, { version: "v1", resource: "services" }),
+      listClusterScopedResources<K8sServiceItem>(activeCluster!, { version: "v1", resource: "services" }),
     enabled: !!clusterDns && !isOffline,
     staleTime: 30_000,
   })
@@ -98,7 +98,7 @@ export default function AppIngressesPage() {
   const httpRoutesQuery = useQuery({
     queryKey: ["httproutes-all", clusterDns],
     queryFn: () =>
-      listClusterScopedResources<K8sHttpRoute>(clusterDns!, {
+      listClusterScopedResources<K8sHttpRoute>(activeCluster!, {
         group: "gateway.networking.k8s.io",
         version: "v1",
         resource: "httproutes",

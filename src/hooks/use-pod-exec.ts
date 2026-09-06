@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useClusterStore } from "@/stores/cluster-store"
 import { useAuthStore } from "@/stores/auth-store"
+import { getK8sApiBase } from "@/lib/api/k8s-client"
 
 interface UsePodExecOptions {
   namespace: string
@@ -44,7 +45,7 @@ export function usePodExec({ namespace, podName, containerName, command }: UsePo
     const cmds = getCommand()
     if (!cmds) return null
 
-    const host = `https://${cluster.status.publicDns}:8443`
+    const host = getK8sApiBase(cluster)
     const url = new URL(`${host}/api/v1/namespaces/${namespace}/pods/${podName}/exec`)
 
     cmds.forEach((c) => url.searchParams.append("command", c))

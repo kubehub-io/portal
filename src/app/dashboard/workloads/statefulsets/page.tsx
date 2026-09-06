@@ -14,7 +14,6 @@ function makeWorkloadPage(
 ) {
   return function WorkloadPage() {
     const activeCluster = useClusterStore((s) => s.activeCluster)
-    const clusterDns = activeCluster?.status.publicDns
     const [namespace, setNamespace] = useState("__all")
     const { data: nsData } = useK8sClusterResources(
       { version: "v1", resource: "namespaces" },
@@ -78,7 +77,7 @@ function makeWorkloadPage(
           <ResourceYamlEditDialog
             open={!!editTarget}
             onOpenChange={(o) => { if (!o) setEditTarget(null) }}
-            clusterDns={clusterDns ?? ""}
+            cluster={activeCluster}
             desc={options.desc}
             name={editTarget?.name ?? ""}
             namespace={editTarget?.namespace}

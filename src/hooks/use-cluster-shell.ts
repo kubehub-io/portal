@@ -83,6 +83,10 @@ function getK8sHost(dns: string): string {
   return `https://${dns}:8443`
 }
 
+function toWsUrl(url: string): string {
+  return url.replace(/^https:/, "wss:").replace(/^http:/, "ws:")
+}
+
 const PROXY_ERROR_RE = /proxy error from konnect-srv.*?while dialing (\d+\.\d+\.\d+\.\d+):10250/
 const NO_NODE_ERROR_RE = /serviceaccount\s+"[^"]*"\s+not found/
 
@@ -129,7 +133,7 @@ export async function updateShellPodToken(
   url.searchParams.set("stderr", "true")
   url.searchParams.set("tty", "false")
 
-  const wsUrl = url.toString().replace(/^https:/, "wss:")
+  const wsUrl = toWsUrl(url.toString())
   const ws = new WebSocket(wsUrl, [
     "v5.channel.k8s.io",
     `base64url.bearer.authorization.k8s.io.${base64url(token)}`,
@@ -414,7 +418,7 @@ async function writeFilesToPod(
   url.searchParams.set("stderr", "true")
   url.searchParams.set("tty", "false")
 
-  const wsUrl = url.toString().replace(/^https:/, "wss:")
+  const wsUrl = toWsUrl(url.toString())
   const ws = new WebSocket(wsUrl, [
     "v5.channel.k8s.io",
     `base64url.bearer.authorization.k8s.io.${base64url(token)}`,

@@ -40,8 +40,10 @@ interface LastOperation {
 
 interface ClusterStatus {
   publicDns: string
+  localDnsDomain?: string
   state?: string
   controlPlaneComponents?: Record<string, { id?: string; version?: string }>
+  addonComponents?: Record<string, { id?: string; version?: string }>
   lastOperation?: LastOperation
 }
 

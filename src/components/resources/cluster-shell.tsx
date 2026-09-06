@@ -43,7 +43,7 @@ export function ClusterShell() {
   const { data: nodes } = useQuery({
     queryKey: ["shell-nodes", activeCluster?.status.publicDns],
     queryFn: async () => {
-      const list = await listClusterScopedResources<K8sResource>(activeCluster!.status.publicDns, {
+      const list = await listClusterScopedResources<K8sResource>(activeCluster!, {
         version: "v1",
         resource: "nodes",
       })

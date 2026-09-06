@@ -11,7 +11,6 @@ const CONFIGMAP_DESC: ResourceDescriptor = { version: "v1", resource: "configmap
 
 export default function ConfigMapsPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
-  const clusterDns = activeCluster?.status.publicDns
   const [namespace, setNamespace] = useState("__all")
   const { data: nsData } = useK8sClusterResources({ version: "v1", resource: "namespaces" }, "namespaces")
   const { data, isLoading, error } = useK8sClusterResources({ version: "v1", resource: "configmaps" }, "configmaps")
@@ -68,7 +67,7 @@ export default function ConfigMapsPage() {
       <ResourceYamlEditDialog
         open={!!editTarget}
         onOpenChange={(o) => { if (!o) setEditTarget(null) }}
-        clusterDns={clusterDns ?? ""}
+        cluster={activeCluster}
         desc={CONFIGMAP_DESC}
         name={editTarget?.name ?? ""}
         namespace={editTarget?.namespace}

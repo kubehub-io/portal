@@ -36,7 +36,7 @@ export function useAPIDiscovery() {
 
   return useQuery({
     queryKey: ["api-discovery", activeCluster?.metadata.name, activeCluster?.status.publicDns],
-    queryFn: () => discoverAPI(activeCluster!.status.publicDns),
+    queryFn: () => discoverAPI(activeCluster!),
     enabled: !!activeCluster && isAuthenticated,
     staleTime: 5 * 60 * 1000,
   })

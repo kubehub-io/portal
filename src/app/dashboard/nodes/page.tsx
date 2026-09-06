@@ -184,7 +184,7 @@ export default function NodesPage() {
   const k8sQuery = useQuery({
     queryKey: ["k8s-nodes", activeCluster?.metadata.name, clusterDns],
     queryFn: async () => {
-      const list = await listClusterScopedResources<K8sResource>(clusterDns!, {
+      const list = await listClusterScopedResources<K8sResource>(activeCluster!, {
         version: "v1",
         resource: "nodes",
       })
@@ -243,7 +243,7 @@ export default function NodesPage() {
         await deleteNode(activeCluster!.metadata.name, node.name)
       }
       if (node.k8s) {
-        await deleteK8sResource(clusterDns!, null, { version: "v1", resource: "nodes" }, node.name)
+        await deleteK8sResource(activeCluster!, null, { version: "v1", resource: "nodes" }, node.name)
       }
     },
     onSuccess: () => {
