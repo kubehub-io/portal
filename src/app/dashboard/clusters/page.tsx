@@ -66,6 +66,7 @@ export default function ClustersPage() {
   const [editIngressEnabled, setEditIngressEnabled] = useState(true)
   const [editIngressEmail, setEditIngressEmail] = useState("")
   const [editStorageProfile, setEditStorageProfile] = useState("none")
+  const [editMonitoringEnabled, setEditMonitoringEnabled] = useState(false)
   const [editAppIngressCount, setEditAppIngressCount] = useState(0)
   const [editError, setEditError] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
@@ -320,6 +321,7 @@ export default function ClustersPage() {
                           setEditIngressEnabled(cluster.spec.managedIngressProfile?.enabled !== false)
                           setEditIngressEmail(cluster.spec.managedIngressProfile?.email ?? "")
                           setEditStorageProfile(cluster.spec.storageProfile?.backend ?? "none")
+                          setEditMonitoringEnabled(cluster.spec.monitoringProfile?.enabled === true)
                           try {
                             const apps = await listAppIngresses(cluster.metadata.name)
                             setEditAppIngressCount(apps.length)
@@ -410,10 +412,11 @@ export default function ClustersPage() {
             <DialogTitle>Cluster Settings — {editCluster}</DialogTitle>
           </DialogHeader>
           <Tabs defaultValue="network" className="mt-2">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="network">Network</TabsTrigger>
               <TabsTrigger value="ingress">AppIngress</TabsTrigger>
               <TabsTrigger value="storage">Storage</TabsTrigger>
+              <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
             </TabsList>
             <TabsContent value="network" className="space-y-4 pt-4">
               <p className="text-xs text-muted-foreground">Network settings cannot be modified after cluster creation.</p>
@@ -505,6 +508,16 @@ export default function ClustersPage() {
                 </div>
               )}
             </TabsContent>
+            <TabsContent value="monitoring" className="space-y-4 pt-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="editMonitoringEnabled"
+                  checked={editMonitoringEnabled}
+                  onCheckedChange={(v) => setEditMonitoringEnabled(v === true)}
+                />
+                <Label htmlFor="editMonitoringEnabled" className="cursor-pointer text-sm">Enable monitoring</Label>
+              </div>
+            </TabsContent>
           </Tabs>
           {editError && (
             <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">{editError}</div>
@@ -522,6 +535,7 @@ export default function ClustersPage() {
                     ...cluster.spec,
                     managedIngressProfile: { enabled: editIngressEnabled, email: editIngressEmail },
                     storageProfile: { backend: editStorageProfile === "none" ? "" : editStorageProfile },
+                    monitoringProfile: { enabled: editMonitoringEnabled },
                   },
                 }, etag)
                 queryClient.invalidateQueries({ queryKey: ["clusters"] })

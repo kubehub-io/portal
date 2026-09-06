@@ -21,6 +21,7 @@ interface ClusterSpec {
   }
   managedIngressProfile?: ManagedIngressProfile
   storageProfile?: { backend?: string }
+  monitoringProfile?: { enabled?: boolean }
 }
 
 interface OperationError {

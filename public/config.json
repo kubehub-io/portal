@@ -2,11 +2,14 @@
   "apiUrl": "https://api.kubehub.io",
   "oidcConfig": {
     "issuer": "https://login.kubehub.io/auth/realms/Kubehub",
-    "clientId": "nestctl",
+    "clientId": "publicClient",
     "redirectUri": "https://kubehub.io/auth/callback"
   },
   "webShellConfig": {
     "image": "ghcr.io/kubehub-io/webshell:20260616.8",
     "specVersion": "1"
+  },
+  "monitoringConfig": {
+    "perses": "https://perses.monitoring.kubehub.io"
   }
 }
