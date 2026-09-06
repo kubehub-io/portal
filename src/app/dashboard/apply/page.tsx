@@ -87,17 +87,17 @@ export default function ApplyPage() {
 
           let exists = false
           try {
-            await getK8sResource(clusterDns!, ns, desc, name)
+            await getK8sResource(activeCluster!, ns, desc, name)
             exists = true
           } catch {
             exists = false
           }
 
           if (exists) {
-            await updateK8sResource(clusterDns!, ns, desc, name, doc)
+            await updateK8sResource(activeCluster!, ns, desc, name, doc)
             res.push({ name: info.name, kind: info.kind, namespace: info.namespace, action: "updated" })
           } else {
-            await createK8sResource(clusterDns!, ns, desc, doc)
+            await createK8sResource(activeCluster!, ns, desc, doc)
             res.push({ name: info.name, kind: info.kind, namespace: info.namespace, action: "created" })
           }
         } catch (e) {

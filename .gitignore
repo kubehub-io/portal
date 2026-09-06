@@ -41,4 +41,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-dev.config.json
+public/dev.config.json
+
+# mock server self-signed certs
+.mock-certs/

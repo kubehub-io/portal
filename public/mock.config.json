@@ -1,0 +1,15 @@
+{
+  "apiUrl": "http://localhost:3002",
+  "oidcConfig": {
+    "issuer": "https://localhost:3001/realms/Kubehub",
+    "clientId": "publicClient",
+    "redirectUri": "http://localhost:3000/auth/callback"
+  },
+  "webShellConfig": {
+    "image": "ghcr.io/kubehub-io/webshell:20260616.8",
+    "specVersion": "1"
+  },
+  "monitoringConfig": {
+    "perses": "https://localhost:3004"
+  }
+}

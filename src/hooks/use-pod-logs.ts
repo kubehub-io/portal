@@ -39,7 +39,7 @@ export function usePodLogs({ namespace, podName, containerName }: UsePodLogsOpti
 
     try {
       const resp = await streamPodLogs(
-        cluster.status.publicDns,
+        cluster,
         namespace,
         podName,
         containerName,

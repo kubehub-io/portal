@@ -40,7 +40,7 @@ export function PodLogsDialog({ open, onOpenChange, namespace, podName }: PodLog
     if (!cluster) return
 
     getK8sResource<{ spec: { containers: { name: string }[] } }>(
-      cluster.status.publicDns,
+      cluster,
       namespace,
       { version: "v1", resource: "pods" },
       podName,

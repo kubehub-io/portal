@@ -9,6 +9,9 @@ export interface AppConfig {
     image: string
     specVersion: string
   }
+  monitoringConfig?: {
+    perses?: string
+  }
 }
 
 const DEFAULTS: AppConfig = {

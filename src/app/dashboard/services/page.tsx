@@ -11,7 +11,6 @@ const SERVICE_DESC: ResourceDescriptor = { version: "v1", resource: "services" }
 
 export default function ServicesPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
-  const clusterDns = activeCluster?.status.publicDns
   const [namespace, setNamespace] = useState("__all")
   const { data: nsData } = useK8sClusterResources({ version: "v1", resource: "namespaces" }, "namespaces")
   const { data, isLoading, error } = useK8sClusterResources({ version: "v1", resource: "services" }, "services")
@@ -67,7 +66,7 @@ export default function ServicesPage() {
       <ResourceYamlEditDialog
         open={!!editTarget}
         onOpenChange={(o) => { if (!o) setEditTarget(null) }}
-        clusterDns={clusterDns ?? ""}
+        cluster={activeCluster}
         desc={SERVICE_DESC}
         name={editTarget?.name ?? ""}
         namespace={editTarget?.namespace}

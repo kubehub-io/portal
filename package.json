@@ -2,11 +2,12 @@
   "name": "kubehub-portal",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@11.18.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "test -f dev.config.json && cp dev.config.json out/config.json; npx serve out",
+    "start": "node scripts/start.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint"

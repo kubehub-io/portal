@@ -30,7 +30,7 @@ export default function PodsPage() {
   const deleteMutation = useMutation({
     mutationFn: ({ ns, name }: { ns: string; name: string }) =>
       deleteK8sResource(
-        activeCluster!.status.publicDns,
+        activeCluster!,
         ns,
         { version: "v1", resource: "pods" },
         name,

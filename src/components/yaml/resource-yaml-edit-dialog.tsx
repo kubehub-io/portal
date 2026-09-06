@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import * as yaml from "js-yaml"
 import { getK8sResource, updateK8sResource, type ResourceDescriptor } from "@/lib/api/k8s-client"
+import type { Cluster } from "@/stores/cluster-store"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -37,7 +38,7 @@ function cleanForEdit(obj: Record<string, unknown>): Record<string, unknown> {
 export interface ResourceYamlEditDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  clusterDns: string
+  cluster: Cluster | null
   desc: ResourceDescriptor
   name: string
   namespace?: string | null
@@ -48,7 +49,7 @@ export interface ResourceYamlEditDialogProps {
 export function ResourceYamlEditDialog({
   open,
   onOpenChange,
-  clusterDns,
+  cluster,
   desc,
   name,
   namespace,
@@ -62,7 +63,7 @@ export function ResourceYamlEditDialog({
 
   const loadMutation = useMutation({
     mutationFn: async () => {
-      const res = await getK8sResource<Record<string, unknown>>(clusterDns, namespace ?? null, desc, name)
+      const res = await getK8sResource<Record<string, unknown>>(cluster!, namespace ?? null, desc, name)
       return yaml.dump(cleanForEdit(res), { indent: 2, noRefs: true, lineWidth: -1 })
     },
     onMutate: () => {
@@ -93,7 +94,7 @@ export function ResourceYamlEditDialog({
     mutationFn: async () => {
       const parsed = yaml.load(value)
       if (!parsed || typeof parsed !== "object") throw new Error("Invalid YAML: must be a valid object")
-      return updateK8sResource(clusterDns, namespace ?? null, desc, name, parsed)
+      return updateK8sResource(cluster!, namespace ?? null, desc, name, parsed)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [queryKey] })
