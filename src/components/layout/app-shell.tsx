@@ -1,10 +1,12 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
-import { LogOut, Sun, Moon, Monitor } from "lucide-react"
+import { getConfig } from "@/lib/config"
+import { LogOut, Sun, Moon, Monitor, Activity } from "lucide-react"
 import { redirect } from "next/navigation"
 
 const nextTheme: Record<string, "light" | "dark" | "system"> = {
@@ -34,6 +36,27 @@ export function ThemeToggle() {
   )
 }
 
+export function MonitoringButton() {
+  const [persesUrl, setPersesUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    getConfig()
+      .then((cfg) => setPersesUrl(cfg.monitoringConfig?.perses ?? null))
+      .catch(() => setPersesUrl(null))
+  }, [])
+
+  if (!persesUrl) return null
+
+  return (
+    <Button variant="ghost" size="sm" asChild>
+      <a href={persesUrl} target="_blank" rel="noopener noreferrer">
+        <Activity className="h-4 w-4 mr-2" />
+        Monitoring
+      </a>
+    </Button>
+  )
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, clearTokens } = useAuth()
 
@@ -56,6 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-14 items-center justify-between border-b px-6">
           <h1 className="text-lg font-semibold">KubeHub Dashboard</h1>
           <div className="flex items-center gap-2">
+            <MonitoringButton />
             <ThemeToggle />
             <Button variant="ghost" size="sm" onClick={clearTokens}>
               <LogOut className="h-4 w-4 mr-2" />

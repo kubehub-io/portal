@@ -91,23 +91,37 @@ export async function getClusterETag(name: string): Promise<{ cluster: Cluster; 
   return { cluster, etag }
 }
 
-interface ManagedIngressProfile {
+export interface ManagedIngressProfile {
   enabled?: boolean
   email?: string
 }
 
-interface CreateClusterRequest {
+export interface MonitoringProfile {
+  enabled?: boolean
+}
+
+export interface StorageProfile {
+  backend?: string
+}
+
+export interface Network {
+  podCIDR?: string
+  serviceCIDR?: string
+  kubeDNSServiceIP?: string
+  managedIngress?: boolean
+}
+
+export interface ClusterSpecPatch {
+  region?: string
+  network?: Network
+  managedIngressProfile?: ManagedIngressProfile
+  storageProfile?: StorageProfile
+  monitoringProfile?: MonitoringProfile
+}
+
+export interface CreateClusterRequest {
   metadata?: { name: string }
-  spec?: {
-    region: string
-    network?: {
-      podCIDR?: string
-      serviceCIDR?: string
-      kubeDNSServiceIP?: string
-    }
-    managedIngressProfile?: ManagedIngressProfile
-    storageProfile?: { backend?: string }
-  }
+  spec?: ClusterSpecPatch
 }
 
 export async function createCluster(req: CreateClusterRequest): Promise<Cluster> {
