@@ -14,9 +14,11 @@ import { handleError } from "./mock/util.ts"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const configPath = path.resolve(__dirname, "../public/mock.config.json")
 const config = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
-  oidcConfig?: { issuer?: string }
+  oidcConfig?: { issuer?: string; redirectUri?: string }
   apiUrl?: string
 }
+
+const allowedRedirectUris = new Set<string>(["/", ...(config.oidcConfig?.redirectUri ? [config.oidcConfig.redirectUri] : [])])
 
 if (!config.oidcConfig?.issuer || !config.apiUrl) {
   console.error("[mock] public/mock.config.json must define oidcConfig.issuer and apiUrl")
@@ -75,7 +77,7 @@ const servers: (http.Server | https.Server)[] = [
     "oidc",
     issuer.protocol,
     defaultPort(issuer.protocol, issuer),
-    oidcHandler(issuer),
+    oidcHandler(issuer, allowedRedirectUris),
     `${issuer.pathname.replace(/\/+$/, "")}/protocol/openid-connect/auth`,
   ),
   startServer("control-plane api", api.protocol, defaultPort(api.protocol, api), controlPlaneHandler()),
