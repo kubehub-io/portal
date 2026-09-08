@@ -337,6 +337,7 @@ export interface AppIngress {
     exposeToLocal?: boolean
     routesByPrefix?: Record<string, { serviceName: string; namespace: string; port: number }>
     protocol?: string
+    customDomain?: string
   }
   status: {
     publicDns?: string
