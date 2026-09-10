@@ -29,5 +29,9 @@ RUN CILIUM_CLI_VERSION="$(curl -s https://raw.githubusercontent.com/cilium/ciliu
     && tar -xzf /tmp/cilium.tar.gz -C /usr/local/bin \
     && rm /tmp/cilium.tar.gz \
     && cilium version
+RUN GORELEASER_ARCH="$(uname -m | sed 's/aarch64/arm64/')" \
+    && VERSION="$(curl -fsSL https://api.github.com/repos/kubehub-io/cli/releases/latest | sed -n 's/.*"tag_name": "\(.*\)",/\1/p')" \
+    && curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/${VERSION}/cli_Linux_${GORELEASER_ARCH} \
+    && chmod +x /usr/bin/kubehubcli
 
 CMD ["/bin/bash"]
