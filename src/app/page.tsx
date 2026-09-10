@@ -391,7 +391,7 @@ function FaqSection() {
           <details className="faq-item">
             <summary className="faq-question">Is this free?</summary>
             <div className="faq-answer">
-              <p>Yes, as long as you get a slot. Slots renew every 3 months (limited by cert lifespan). We are building a paid plan experience where you will get a secured spot.</p>
+              <p>Yes, but we have limited capacity, controlplane does take quite some resources. We are building a paid plan experience where you will get a secured spot.</p>
             </div>
           </details>
           <details className="faq-item">
