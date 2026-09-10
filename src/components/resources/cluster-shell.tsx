@@ -237,6 +237,10 @@ function ShellTerminal({
           case "k":
           case "u":
             e.preventDefault()
+              const sess = getSession()
+              if (sess) {
+                sess.send(String.fromCharCode(e.key.toLowerCase().charCodeAt(0) - 96))
+              }
             break
         }
       }
@@ -244,7 +248,7 @@ function ShellTerminal({
 
     el.addEventListener("keydown", handleKeyDown)
     return () => el.removeEventListener("keydown", handleKeyDown)
-  }, [])
+  }, [getSession])
 
   useEffect(() => {
     if (!disconnected || !termRef.current) return

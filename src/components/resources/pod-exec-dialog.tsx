@@ -96,6 +96,32 @@ export function PodExecDialog({ open, onOpenChange, namespace, podName }: PodExe
     }
   }, [terminalNode, getSession, onOutputRef, doFit])
 
+  useEffect(() => {
+    const el = terminalNode
+    if (!el) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.metaKey && !e.altKey) {
+        switch (e.key.toLowerCase()) {
+          case "w":
+          case "l":
+          case "a":
+          case "k":
+          case "u":
+            e.preventDefault()
+              const sess = getSession()
+              if (sess) {
+                sess.send(String.fromCharCode(e.key.toLowerCase().charCodeAt(0) - 96))
+              }
+            break
+        }
+      }
+    }
+
+    el.addEventListener("keydown", handleKeyDown)
+    return () => el.removeEventListener("keydown", handleKeyDown)
+  }, [terminalNode, getSession])
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onOpenChange(v) }}>
       <DialogContent
