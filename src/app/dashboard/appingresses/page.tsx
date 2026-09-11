@@ -226,7 +226,8 @@ export default function AppIngressesPage() {
   const [newRoutePort, setNewRoutePort] = useState("")
   const [routesExpanded, setRoutesExpanded] = useState(false)
   const [formCustomDomain, setFormCustomDomain] = useState("")
-  const [customDomainTouched, setCustomDomainTouched] = useState(false)
+  const [formCustomDomainEnabled, setFormCustomDomainEnabled] = useState(false)
+  const [customDomainFocused, setCustomDomainFocused] = useState(false)
 
   const dialogServices = useMemo(() => {
     const editSvcId = editTarget?.spec.serviceBackend
@@ -249,7 +250,8 @@ export default function AppIngressesPage() {
     setNewRouteServiceId("")
     setNewRoutePort("")
     setFormCustomDomain("")
-    setCustomDomainTouched(false)
+    setFormCustomDomainEnabled(false)
+    setCustomDomainFocused(false)
     setEditTarget(null)
     if (clusterDns) servicesQuery.refetch()
     setCreateOpen(true)
@@ -262,7 +264,8 @@ export default function AppIngressesPage() {
     setFormExposePublic(app.spec.exposeToPublic ?? false)
     setFormRoutes(app.spec.routesByPrefix ?? {})
     setFormCustomDomain(app.spec.customDomain ?? "")
-    setCustomDomainTouched(false)
+    setFormCustomDomainEnabled(!!app.spec.customDomain)
+    setCustomDomainFocused(false)
     setNewRoutePrefix("")
     setNewRouteServiceId("")
     setNewRoutePort("")
@@ -287,7 +290,6 @@ export default function AppIngressesPage() {
   }, [selectedService])
 
   const publicDns = editTarget?.status?.publicDns ?? ""
-  const canSetCustomDomain = formExposePublic && !!publicDns
 
   const NAME_PRIORITY = ["https", "http", "tls"]
   const PORT_PRIORITY = [443, 80, 8443, 8080, 3000, 8000]
@@ -350,7 +352,7 @@ export default function AppIngressesPage() {
       protocol: formProtocol,
       routesByPrefix: formRoutes,
     }
-    if (canSetCustomDomain) {
+    if (formCustomDomainEnabled) {
       spec.customDomain = formCustomDomain.trim()
     }
     if (selectedService) {
@@ -361,7 +363,7 @@ export default function AppIngressesPage() {
       }
     }
     return spec
-  }, [formExposePublic, formExposeLocal, formProtocol, formRoutes, selectedService, formPort, canSetCustomDomain, formCustomDomain])
+  }, [formExposePublic, formExposeLocal, formProtocol, formRoutes, selectedService, formPort, formCustomDomainEnabled, formCustomDomain])
 
   const handleSave = async () => {
     setFormError("")
@@ -616,7 +618,14 @@ export default function AppIngressesPage() {
                 <Checkbox
                   id="exposePublic"
                   checked={formExposePublic}
-                  onCheckedChange={(v) => setFormExposePublic(v === true)}
+                  onCheckedChange={(v) => {
+                    const next = v === true
+                    setFormExposePublic(next)
+                    if (!next) {
+                      setFormCustomDomainEnabled(false)
+                      setFormCustomDomain("")
+                    }
+                  }}
                 />
                 <Label htmlFor="exposePublic" className="cursor-pointer">Expose to Public</Label>
               </div>
@@ -628,42 +637,50 @@ export default function AppIngressesPage() {
                 />
                 <Label htmlFor="exposeLocal" className="text-muted-foreground">Expose Locally</Label>
               </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="customDomain"
+                  checked={formCustomDomainEnabled}
+                  onCheckedChange={(v) => setFormCustomDomainEnabled(v === true)}
+                  disabled={!formExposePublic}
+                />
+                <Label htmlFor="customDomain" className={formExposePublic ? "cursor-pointer" : "text-muted-foreground"}>Custom Domain</Label>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="customDomain">Custom Domain</Label>
-              <Input
-                id="customDomain"
-                value={formCustomDomain}
-                onChange={(e) => setFormCustomDomain(e.target.value)}
-                onFocus={() => setCustomDomainTouched(true)}
-                placeholder="app.example.com"
-                disabled={!canSetCustomDomain}
-              />
-              {canSetCustomDomain ? (
-                <>
-                  <p className="text-xs text-muted-foreground">
-                    Optional custom domain for public access.
-                  </p>
-                  {customDomainTouched && (
-                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span>
-                        This domain must have a CNAME record pointing to <span className="font-mono">{publicDns}</span>.
-                      </span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Custom domain can be set once the app is exposed to public and its public DNS is provisioned.
-                </p>
-              )}
-            </div>
+            {formCustomDomainEnabled && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="customDomainInput">Custom Domain</Label>
+                  <Input
+                    id="customDomainInput"
+                    value={formCustomDomain}
+                    onChange={(e) => setFormCustomDomain(e.target.value)}
+                    onFocus={() => setCustomDomainFocused(true)}
+                    onBlur={() => setCustomDomainFocused(false)}
+                    placeholder="app.example.com"
+                  />
+                </div>
+
+                {customDomainFocused && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1 dark:bg-amber-950/20 dark:text-amber-200">
+                    <p className="font-medium">Custom Domain Setup</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>
+                        You need this for Cloudflare domain, config your cloudflare domain first, with CNAME point to <span className="font-mono">{publicDns}</span>, turn on proxy. then type your cloudflare domain here.
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
 
             {(formExposePublic || formExposeLocal) && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
-                <p className="font-medium">Security Notice</p>
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1 dark:bg-amber-950/20 dark:text-amber-200">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <p className="font-medium">Security Notice</p>
+                </div>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>Domain/TLS is handled by Kubehub (trusted in browser).</li>
                   <li>Authentication &amp; Authorization are your responsibility. If your app has its own auth, great. If not, you must protect your content.</li>

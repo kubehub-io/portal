@@ -6,7 +6,7 @@
     "redirectUri": "http://localhost:3000/auth/callback"
   },
   "webShellConfig": {
-    "image": "ghcr.io/kubehub-io/webshell:20260616.8",
+    "image": "ghcr.io/kubehub-io/portal-webshell:main-20260910-13",
     "specVersion": "1"
   },
   "monitoringConfig": {

@@ -249,7 +249,7 @@ function FeaturesSection() {
           <div className="feature-card">
             <div className="feature-icon">📦</div>
             <h3 className="feature-title">Free Tier</h3>
-            <p className="feature-desc">1 cluster, 10 local apps, 5 public apps, up to 3 nodes. No credit card required.</p>
+            <p className="feature-desc">1 cluster, unlimited local apps, 5 public apps, up to 3 nodes. No credit card required.</p>
           </div>
           <div className="feature-card">
             <div className="feature-icon">🧩</div>
@@ -315,10 +315,11 @@ function PricingSection() {
             <ul className="pricing-features">
               <li>1 Kubernetes cluster</li>
               <li>Up to 3 nodes</li>
-              <li>10 local apps</li>
+              <li>unlimited local apps</li>
               <li>5 public apps</li>
               <li>OIDC authentication</li>
               <li>Web shell access</li>
+              <li>Logs/Metrics</li>
               <li>Community support</li>
             </ul>
             <LoginButton className="btn btn-primary btn-lg btn-block" />
@@ -390,7 +391,7 @@ function FaqSection() {
           <details className="faq-item">
             <summary className="faq-question">Is this free?</summary>
             <div className="faq-answer">
-              <p>Yes, as long as you get a slot. Slots renew every 3 months (limited by cert lifespan). We are building a paid plan experience where you will get a secured spot.</p>
+              <p>Yes, but we have limited capacity, controlplane does take quite some resources. We are building a paid plan experience where you will get a secured spot.</p>
             </div>
           </details>
           <details className="faq-item">
