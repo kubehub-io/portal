@@ -2,11 +2,10 @@
   "apiUrl": "https://api.kubehub.io",
   "oidcConfig": {
     "issuer": "https://login.kubehub.io/auth/realms/Kubehub",
-    "clientId": "publicClient",
-    "redirectUri": "https://kubehub.io/auth/callback"
+    "clientId": "publicClient"
   },
   "webShellConfig": {
-    "image": "ghcr.io/kubehub-io/webshell:20260616.8",
+    "image": "ghcr.io/kubehub-io/portal-webshell:main-20260910-13",
     "specVersion": "1"
   },
   "monitoringConfig": {
