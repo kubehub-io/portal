@@ -9,6 +9,7 @@ export interface APIGroup {
   name: string
   versions: { groupVersion: string; version: string }[]
   preferredVersion: { groupVersion: string; version: string }
+  resources?: { name: string; singularName: string; kind: string; namespaced: boolean }[]
 }
 
 export interface APIDiscoveryResult {
@@ -33,9 +34,24 @@ export async function discoverAPI(cluster: Cluster): Promise<APIDiscoveryResult>
   const coreData = await coreRes.json() as { versions: string[] }
   const apisData = await apisRes.json() as { groups: APIGroup[] }
 
+  const groupsWithResources = await Promise.all(
+    apisData.groups.map(async (group) => {
+      try {
+        const version = group.preferredVersion?.version ?? group.versions?.[0]?.version
+        if (!version) return group
+        const res = await fetch(`${host}/apis/${group.name}/${version}`, { headers })
+        if (!res.ok) return group
+        const data = await res.json() as { resources?: APIGroup["resources"] }
+        return { ...group, resources: data.resources }
+      } catch {
+        return group
+      }
+    }),
+  )
+
   return {
     coreVersions: coreData.versions,
-    groups: apisData.groups,
+    groups: groupsWithResources,
   }
 }
 

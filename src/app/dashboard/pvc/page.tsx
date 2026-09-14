@@ -3,11 +3,11 @@
 import { DataTable, StatusBadge } from "@/components/resources/data-table"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
-import { useState } from "react"
 
 export default function PVCPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
-  const [namespace, setNamespace] = useState("__all")
+  const namespace = useClusterStore((s) => s.activeNamespace)
+  const setNamespace = useClusterStore((s) => s.setActiveNamespace)
   const { data: nsData } = useK8sClusterResources({ version: "v1", resource: "namespaces" }, "namespaces")
   const { data, isLoading, error } = useK8sClusterResources({ version: "v1", resource: "persistentvolumeclaims" }, "persistentvolumeclaims")
   const namespaces = (nsData?.items ?? []).map((ns: { metadata: { name: string } }) => ns.metadata.name).sort()

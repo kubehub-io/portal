@@ -14,7 +14,8 @@ function makeWorkloadPage(
 ) {
   return function WorkloadPage() {
     const activeCluster = useClusterStore((s) => s.activeCluster)
-    const [namespace, setNamespace] = useState("__all")
+    const namespace = useClusterStore((s) => s.activeNamespace)
+    const setNamespace = useClusterStore((s) => s.setActiveNamespace)
     const { data: nsData } = useK8sClusterResources(
       { version: "v1", resource: "namespaces" },
       "namespaces",

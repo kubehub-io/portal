@@ -156,7 +156,7 @@ export function ResourceYamlEditDialog({
 
           {parseError && <p className="text-sm text-destructive">{parseError}</p>}
 
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 border-t bg-background px-6 py-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateMutation.isPending}>
             Cancel
           </Button>

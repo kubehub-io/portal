@@ -11,7 +11,8 @@ const SERVICE_DESC: ResourceDescriptor = { version: "v1", resource: "services" }
 
 export default function ServicesPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
-  const [namespace, setNamespace] = useState("__all")
+  const namespace = useClusterStore((s) => s.activeNamespace)
+  const setNamespace = useClusterStore((s) => s.setActiveNamespace)
   const { data: nsData } = useK8sClusterResources({ version: "v1", resource: "namespaces" }, "namespaces")
   const { data, isLoading, error } = useK8sClusterResources({ version: "v1", resource: "services" }, "services")
   const namespaces = (nsData?.items ?? []).map((ns: { metadata: { name: string } }) => ns.metadata.name).sort()
