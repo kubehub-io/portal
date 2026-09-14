@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import dynamic from "next/dynamic"
 import { yaml } from "@codemirror/lang-yaml"
 import type { Extension } from "@codemirror/state"
+import { useTheme } from "@/components/theme-provider"
 
 const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), {
   ssr: false,
@@ -34,6 +35,7 @@ export function YamlEditor({
   extensions,
 }: YamlEditorProps) {
   const baseExtensions = useMemo(() => [yaml(), ...(extensions ?? [])], [extensions])
+  const { resolvedTheme } = useTheme()
 
   return (
     <div
@@ -45,7 +47,7 @@ export function YamlEditor({
         onChange={onChange}
         height="100%"
         style={{ height: "100%", fontSize: "13px" }}
-        theme="light"
+        theme={resolvedTheme}
         extensions={baseExtensions}
         editable={!readOnly}
         readOnly={readOnly}

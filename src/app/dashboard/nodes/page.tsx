@@ -9,6 +9,7 @@ import { listClusterScopedResources, deleteK8sResource } from "@/lib/api/k8s-cli
 import type { K8sResource } from "@/lib/api/k8s-client"
 import type { ControlPlaneNode } from "@/lib/api/control-plane"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import {
   Dialog,
   DialogContent,
@@ -130,6 +131,18 @@ function getResource(node: MergedNode): NodeResource {
 function getConditions(node: MergedNode): NodeCondition[] {
   const conditions = getStatusField(node)?.conditions as NodeCondition[] | undefined
   return conditions ?? []
+}
+
+interface NodeTaint {
+  key?: string
+  value?: string
+  effect?: string
+}
+
+function getTaints(node: MergedNode): NodeTaint[] {
+  const k8sTaints = ((node.k8s?.spec as Record<string, unknown>)?.taints as NodeTaint[] | undefined) ?? []
+  const cpTaints = (node.cp?.spec?.taints as NodeTaint[] | undefined) ?? []
+  return [...k8sTaints, ...cpTaints]
 }
 
 // Most conditions are healthy when True; pressure/availability conditions are healthy when False.
@@ -393,10 +406,31 @@ export default function NodesPage() {
       label: "",
       render: (_value: unknown, item: Record<string, unknown>) => {
         const node = item as unknown as MergedNode
+        const taints = getTaints(node)
         return (
-          <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(node)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {taints.length > 0 && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help">
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    <div className="font-mono text-xs">
+                      {taints.map((t, i) => (
+                        <div key={i}>{t.key}{t.value ? `=${t.value}` : ""}:{t.effect ?? "NoSchedule"}</div>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(node)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
         )
       },
     },
@@ -551,6 +585,19 @@ sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-
                 {detailTarget.annotations.includes("disconnected") && (
                   <Badge variant="destructive">Disconnected — not found in Kubernetes</Badge>
                 )}
+              </div>
+            )}
+            {detailTarget && getTaints(detailTarget).length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold mb-2">Taints</h4>
+                <div className="space-y-1">
+                  {getTaints(detailTarget).map((t, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <AlertTriangle className="h-3 w-3 text-yellow-500" />
+                      <span className="font-mono">{t.key}{t.value ? `=${t.value}` : ""}:{t.effect ?? "NoSchedule"}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             {detailTarget?.k8s && (

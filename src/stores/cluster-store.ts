@@ -59,8 +59,10 @@ export interface Cluster {
 interface ClusterState {
   clusters: Cluster[]
   activeCluster: Cluster | null
+  activeNamespace: string
   setClusters: (clusters: Cluster[]) => void
   setActiveCluster: (cluster: Cluster | null) => void
+  setActiveNamespace: (ns: string) => void
   hydrate: () => void
 }
 
@@ -86,6 +88,7 @@ function saveActiveCluster(cluster: Cluster | null) {
 export const useClusterStore = create<ClusterState>((set, get) => ({
   clusters: [],
   activeCluster: null,
+  activeNamespace: "__all",
 
   setClusters: (clusters) => {
     set({ clusters })
@@ -116,7 +119,11 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
 
   setActiveCluster: (cluster) => {
     saveActiveCluster(cluster)
-    set({ activeCluster: cluster })
+    set({ activeCluster: cluster, activeNamespace: "__all" })
+  },
+
+  setActiveNamespace: (ns) => {
+    set({ activeNamespace: ns })
   },
 
   hydrate: () => {

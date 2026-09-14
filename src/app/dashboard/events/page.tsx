@@ -17,7 +17,8 @@ const PAGE_SIZE = 200
 
 export default function EventsPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
-  const [namespace, setNamespace] = useState("__all")
+  const namespace = useClusterStore((s) => s.activeNamespace)
+  const setNamespace = useClusterStore((s) => s.setActiveNamespace)
   const [reason, setReason] = useState("__all")
   const [type, setType] = useState("__all")
   const [refreshKey, setRefreshKey] = useState(0)

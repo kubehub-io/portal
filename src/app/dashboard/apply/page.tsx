@@ -8,6 +8,7 @@ import { useState, useRef, useCallback } from "react"
 import { Upload, Link, Loader2, CheckCircle, XCircle, FileText } from "lucide-react"
 import * as yaml from "js-yaml"
 import { YamlEditor } from "@/components/yaml/yaml-editor"
+import { useAPIDiscovery, resolveResourceFromDiscovery } from "@/hooks/use-api-discovery"
 
 interface ApplyResult {
   name: string
@@ -46,6 +47,7 @@ function resolveResourceDescriptor(apiVersion: string, kind: string): ResourceDe
 export default function ApplyPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
   const clusterDns = activeCluster?.status.publicDns
+  const discoveryQuery = useAPIDiscovery()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [yamlInput, setYamlInput] = useState("")
   const [urlInput, setUrlInput] = useState("")
@@ -76,12 +78,14 @@ export default function ApplyPage() {
     try {
       const docs = yaml.loadAll(yamlStr)
       const res: ApplyResult[] = []
+      const discovery = discoveryQuery.data
 
       for (const doc of docs) {
         if (!doc) continue
         try {
           const info = parseYAMLResource(doc)
-          const desc = resolveResourceDescriptor(info.apiVersion, info.kind)
+          const desc = resolveResourceFromDiscovery(info.apiVersion, info.kind, discovery)
+            ?? resolveResourceDescriptor(info.apiVersion, info.kind)
           const ns = info.namespace || null
           const name = info.name
 
@@ -225,7 +229,7 @@ export default function ApplyPage() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button onClick={handleApply} disabled={applying || !yamlInput.trim() || !clusterDns || !!yamlError}>
+        <Button onClick={handleApply} disabled={applying || !yamlInput.trim() || !clusterDns || !!yamlError || discoveryQuery.isLoading}>
           {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {applying ? "Applying..." : "Apply"}
         </Button>

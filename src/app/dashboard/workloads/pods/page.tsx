@@ -9,14 +9,25 @@ import { useClusterStore } from "@/stores/cluster-store"
 import { deleteK8sResource } from "@/lib/api/k8s-client"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import { Terminal, Monitor, Trash2 } from "lucide-react"
+import { Terminal, Monitor, Trash2, AlertTriangle } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 export default function PodsPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
+  const namespace = useClusterStore((s) => s.activeNamespace)
+  const setNamespace = useClusterStore((s) => s.setActiveNamespace)
   const queryClient = useQueryClient()
-  const [namespace, setNamespace] = useState("__all")
   const [logPod, setLogPod] = useState<{ namespace: string; name: string } | null>(null)
   const [execPod, setExecPod] = useState<{ namespace: string; name: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ ns: string; name: string } | null>(null)
+  const [deleteError, setDeleteError] = useState("")
   const { data: nsData } = useK8sClusterResources(
     { version: "v1", resource: "namespaces" },
     "namespaces",
@@ -102,11 +113,7 @@ export default function PodsPage() {
                 variant="ghost"
                 size="sm"
                 disabled={deleting}
-                onClick={() => {
-                  if (window.confirm(`Delete pod "${name}" in namespace "${ns}"?`)) {
-                    deleteMutation.mutate({ ns, name })
-                  }
-                }}
+                onClick={() => setDeleteTarget({ ns, name })}
               >
                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 {deleting ? "..." : "Delete"}
@@ -131,6 +138,42 @@ export default function PodsPage() {
           podName={execPod.name}
         />
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteError("") } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Delete Pod
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete pod <strong>{deleteTarget?.name}</strong> in namespace <strong>{deleteTarget?.ns}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">{deleteError}</div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteError("") }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!deleteTarget) return
+                setDeleteError("")
+                try {
+                  await deleteMutation.mutateAsync(deleteTarget)
+                  setDeleteTarget(null)
+                } catch (e) {
+                  setDeleteError(e instanceof Error ? e.message : "Failed to delete pod")
+                }
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

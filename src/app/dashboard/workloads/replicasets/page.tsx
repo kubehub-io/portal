@@ -3,12 +3,12 @@
 import { DataTable } from "@/components/resources/data-table"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
-import { useState } from "react"
 
 function makeWorkloadPage(label: string, resource: string, columns: { key: string; label: string }[]) {
   return function WorkloadPage() {
     const activeCluster = useClusterStore((s) => s.activeCluster)
-    const [namespace, setNamespace] = useState("__all")
+    const namespace = useClusterStore((s) => s.activeNamespace)
+    const setNamespace = useClusterStore((s) => s.setActiveNamespace)
     const { data: nsData } = useK8sClusterResources(
       { version: "v1", resource: "namespaces" },
       "namespaces",

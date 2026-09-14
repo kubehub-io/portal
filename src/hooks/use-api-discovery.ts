@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { useClusterStore } from "@/stores/cluster-store"
-import { discoverAPI } from "@/lib/api/k8s-client"
+import { discoverAPI, type APIDiscoveryResult } from "@/lib/api/k8s-client"
 import { useAuthStore } from "@/stores/auth-store"
 
 const RESOURCE_VERSION_MAP: Record<string, { group?: string; version: string; resource: string }> = {
@@ -57,4 +57,42 @@ export function resolveResourceInfo(kind: string, discovery?: { coreVersions: st
   }
 
   return fallback
+}
+
+export function resolveResourceFromDiscovery(
+  apiVersion: string,
+  kind: string,
+  discovery?: APIDiscoveryResult,
+): ResourceInfo | null {
+  const slashIdx = apiVersion.indexOf("/")
+
+  if (slashIdx === -1) {
+    // Core API group (e.g. "v1")
+    if (!discovery) {
+      const key = kind.toLowerCase().replace(/[^a-z]/g, "")
+      return RESOURCE_VERSION_MAP[key] ?? { version: apiVersion, resource: `${kind.toLowerCase()}s` }
+    }
+    // Core resources aren't fetched in bulk; fall back to naive pluralization
+    return { version: apiVersion, resource: `${kind.toLowerCase()}s` }
+  }
+
+  const group = apiVersion.slice(0, slashIdx)
+  const version = apiVersion.slice(slashIdx + 1)
+
+  if (!discovery) {
+    return { group, version, resource: `${kind.toLowerCase()}s` }
+  }
+
+  const apiGroup = discovery.groups.find((g: { name: string }) => g.name === group)
+  if (apiGroup?.resources) {
+    const resource = apiGroup.resources.find(
+      (r: { kind: string; name: string }) => r.kind.toLowerCase() === kind.toLowerCase(),
+    )
+    if (resource) {
+      return { group, version, resource: resource.name }
+    }
+  }
+
+  // Fallback to naive pluralization
+  return { group, version, resource: `${kind.toLowerCase()}s` }
 }
