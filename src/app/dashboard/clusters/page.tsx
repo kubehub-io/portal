@@ -269,11 +269,12 @@ export default function ClustersPage() {
           <DialogHeader>
             <DialogTitle>Download Kubeconfig</DialogTitle>
             <DialogDescription>
-              Your kubeconfig uses OIDC authentication. Install{" "}
+              Kubeconfig can be used with any Kubernetes management tooling that you prefers. This
+              cluster use openID authentication,{" "}
               <a href="https://github.com/int128/kubelogin#setup" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2">
                 kubelogin <ExternalLink className="h-3 w-3" />
               </a>{" "}
-              to authenticate:
+              is required for login.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -287,7 +288,7 @@ kubectl krew install oidc-login
 choco install kubelogin`}</pre>
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input type="checkbox" checked={certBased} onChange={(e) => setCertBased(e.target.checked)} className="mt-0.5" />
-              <span>Download cert-based kubeconfig (bypasses OIDC login prompt)</span>
+              <span>Download cert-based kubeconfig (not recommended)</span>
             </label>
           </div>
           <DialogFooter>
