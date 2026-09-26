@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/use-auth"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
+import { SettingsFlyout } from "@/components/monitoring/settings-flyout"
+import { AlertWarningButton } from "@/components/monitoring/alert-warning-button"
 import { getConfig } from "@/lib/config"
 import { LogOut, Sun, Moon, Monitor, Activity } from "lucide-react"
 import { redirect } from "next/navigation"
@@ -79,12 +81,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-14 items-center justify-between border-b px-6">
           <h1 className="text-lg font-semibold">KubeHub Dashboard</h1>
           <div className="flex items-center gap-2">
-            <MonitoringButton />
+            <AlertWarningButton />
             <ThemeToggle />
+            <MonitoringButton />
             <Button variant="ghost" size="sm" onClick={clearTokens}>
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
+            <SettingsFlyout />
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6">{children}</main>

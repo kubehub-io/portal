@@ -1,0 +1,425 @@
+openapi: 3.0.3
+info:
+  title: Monitoring Public API
+  version: v202609
+  description: Public API for managing Prometheus rules and Alertmanager configurations
+servers:
+  - url: /apis/monitoring-v202609
+    description: Monitoring public API
+paths:
+  /alerts:
+    get:
+      summary: List active alerts across monitoring regions
+      description: Forwards the request query parameters to every monitoring underlay and merges the returned alerts.
+      operationId: listAlerts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Active alerts from all monitoring underlays
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          description: Monitoring underlay request failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertInternalError'
+        '503':
+          description: No monitoring underlays are configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertInternalError'
+  /rules:
+    get:
+      summary: List monitoring rule namespaces
+      operationId: listMonitoringRuleNamespaces
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Monitoring rules grouped by namespace
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NamespaceRules'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /rules/{namespace}:
+    put:
+      summary: Create or replace monitoring rule groups
+      operationId: putMonitoringRules
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Namespace'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRuleRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/APIResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      summary: Get monitoring rule groups
+      operationId: getMonitoringRules
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Namespace'
+      responses:
+        '200':
+          description: Monitoring rules for the namespace
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRuleRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      summary: Delete monitoring rule namespace
+      description: Deletes all monitoring rules for the tenant and namespace identified by the URL.
+      operationId: deleteMonitoringRules
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Namespace'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Monitoring rule namespace deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /alertconfig/{name}:
+    put:
+      summary: Update an Alertmanager configuration
+      operationId: putAlertmanagerConfig
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [default]
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertmanagerConfig'
+      responses:
+        '200':
+          $ref: '#/components/responses/APIResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      summary: Get an Alertmanager configuration
+      operationId: getAlertmanagerConfig
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [default]
+      responses:
+        '200':
+          description: Alertmanager configuration
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertmanagerConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    ETag:
+      description: Entity tag for optimistic concurrency.
+      schema:
+        type: string
+  parameters:
+    Namespace:
+      name: namespace
+      in: path
+      required: true
+      schema:
+        type: string
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: ETag of the resource version being replaced. Omit for an unconditional update; a stale value returns 412.
+      schema:
+        type: string
+  responses:
+    APIResponse:
+      description: Successful operation
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PreconditionFailed:
+      description: The supplied If-Match value does not match the current resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    AlertsResponse:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    AlertInternalError:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+    CreateRuleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleGroup'
+    NamespaceRules:
+      type: object
+      required:
+        - namespace
+        - groups
+      properties:
+        namespace:
+          type: string
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleGroup'
+    RuleGroup:
+      type: object
+      properties:
+        name:
+          type: string
+        interval:
+          type: string
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonitoringRule'
+    MonitoringRule:
+      type: object
+      properties:
+        alert:
+          type: string
+        expr:
+          type: string
+        for:
+          type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+    AlertmanagerConfig:
+      type: object
+      required:
+        - route
+      properties:
+        route:
+          $ref: '#/components/schemas/AlertmanagerRoute'
+        receivers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertmanagerReceiver'
+    AlertmanagerRoute:
+      type: object
+      properties:
+        receiver:
+          type: string
+        group_by:
+          type: array
+          items:
+            type: string
+        group_wait:
+          type: string
+        group_interval:
+          type: string
+        repeat_interval:
+          type: string
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertmanagerRoute'
+    AlertmanagerReceiver:
+      type: object
+      properties:
+        name:
+          type: string
+        telegram_configs:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelegramConfig'
+        email_configs:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailConfig'
+        msteams_configs:
+          type: array
+          items:
+            $ref: '#/components/schemas/MSTeamsConfig'
+        webhook_configs:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookConfig'
+    TelegramConfig:
+      type: object
+      properties:
+        bot_token:
+          type: string
+        chat_id:
+          type: integer
+          format: int64
+        disable_notifications:
+          type: boolean
+        send_resolved:
+          type: boolean
+    EmailConfig:
+      type: object
+      properties:
+        to:
+          type: string
+        require_tls:
+          type: boolean
+        send_resolved:
+          type: boolean
+    MSTeamsConfig:
+      type: object
+      properties:
+        webhook_url:
+          type: string
+        send_resolved:
+          type: boolean
+    WebhookConfig:
+      type: object
+      properties:
+        url:
+          type: string
+        max_alerts:
+          type: integer
+          format: int64
+          minimum: 0
+        send_resolved:
+          type: boolean

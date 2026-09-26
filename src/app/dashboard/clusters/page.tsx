@@ -1,25 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useClusters, useCreateCluster, useDeleteCluster, useDownloadKubeconfig, useReconcileCluster } from "@/hooks/use-clusters"
-import { getMetadata, startCluster as doStartCluster, listAppIngresses, listControlPlaneNodes } from "@/lib/api/control-plane"
+import { useClusters, useDeleteCluster, useDownloadKubeconfig, useReconcileCluster } from "@/hooks/use-clusters"
+import { startCluster as doStartCluster, listControlPlaneNodes } from "@/lib/api/control-plane"
+import { ClusterDialog, fetchAppIngressCount } from "@/components/cluster-dialog"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
@@ -32,7 +22,6 @@ import {
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, Trash2, Download, Loader2, AlertTriangle, ExternalLink, Play, RefreshCw, Settings } from "lucide-react"
 
@@ -52,23 +41,11 @@ function isReconcileStuck(cluster: { status?: { lastOperation?: { operationName?
 
 export default function ClustersPage() {
   const { clusters, isLoading, error } = useClusters()
-  const createCluster = useCreateCluster()
   const deleteCluster = useDeleteCluster()
   const downloadKubeconfig = useDownloadKubeconfig()
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState("")
-  const [region, setRegion] = useState("us-east-1")
-  const [createIngressEnabled, setCreateIngressEnabled] = useState(true)
-  const [createIngressEmail, setCreateIngressEmail] = useState("")
-  const [createStorageProfile, setCreateStorageProfile] = useState("none")
-  const [createError, setCreateError] = useState("")
+  const [createOpen, setCreateOpen] = useState(false)
   const [editCluster, setEditCluster] = useState<string | null>(null)
-  const [editIngressEnabled, setEditIngressEnabled] = useState(true)
-  const [editIngressEmail, setEditIngressEmail] = useState("")
-  const [editStorageProfile, setEditStorageProfile] = useState("none")
-  const [editMonitoringEnabled, setEditMonitoringEnabled] = useState(false)
   const [editAppIngressCount, setEditAppIngressCount] = useState(0)
-  const [editError, setEditError] = useState("")
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState("")
   const [deleteForce, setDeleteForce] = useState(false)
@@ -81,36 +58,6 @@ export default function ClustersPage() {
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState("")
   const reconcileCluster = useReconcileCluster()
-  const queryClient = useQueryClient()
- 
-  const { data: metadata } = useQuery({
-    queryKey: ["metadata"],
-    queryFn: getMetadata,
-    enabled: open,
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const handleCreate = async () => {
-    setCreateError("")
-    try {
-      await createCluster.mutateAsync({
-        metadata: { name },
-        spec: {
-          region,
-          managedIngressProfile: { enabled: createIngressEnabled, email: createIngressEmail },
-          storageProfile: { backend: createStorageProfile === "none" ? "" : createStorageProfile },
-        },
-      })
-      setOpen(false)
-      setName("")
-      setRegion("us-east-1")
-      setCreateIngressEnabled(true)
-      setCreateIngressEmail("")
-      setCreateStorageProfile("none")
-    } catch (e) {
-      setCreateError(e instanceof Error ? e.message : "Failed to create cluster")
-    }
-  }
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return
@@ -178,102 +125,11 @@ export default function ClustersPage() {
           <h2 className="text-2xl font-bold tracking-tight">Clusters</h2>
           <p className="text-muted-foreground">Manage your Kubernetes clusters</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Cluster
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Create Cluster</DialogTitle>
-            </DialogHeader>
-            <Tabs defaultValue="general" className="mt-2">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="general">General</TabsTrigger>
-                <TabsTrigger value="ingress">AppIngress</TabsTrigger>
-                <TabsTrigger value="storage">Storage</TabsTrigger>
-              </TabsList>
-              <TabsContent value="general" className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="my-cluster" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="region">Region</Label>
-                  <Select value={region} onValueChange={setRegion}>
-                    <SelectTrigger id="region">
-                      <SelectValue placeholder="Select a region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {metadata?.regions.map((r) => (
-                        <SelectItem key={r} value={r}>{r}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </TabsContent>
-              <TabsContent value="ingress" className="space-y-4 pt-4">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="createIngressEnabled"
-                    checked={createIngressEnabled}
-                    onCheckedChange={(v) => setCreateIngressEnabled(v === true)}
-                  />
-                  <Label htmlFor="createIngressEnabled" className="cursor-pointer text-sm">Enable managed ingress</Label>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="createIngressEmail">LetsEncrypt Notification email</Label>
-                  <Input
-                    id="createIngressEmail"
-                    value={createIngressEmail}
-                    onChange={(e) => setCreateIngressEmail(e.target.value)}
-                    placeholder="email from login will be used"
-                    type="email"
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="storage" className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="createStorageProfile">Storage provider</Label>
-                  <Select value={createStorageProfile} onValueChange={setCreateStorageProfile}>
-                    <SelectTrigger id="createStorageProfile">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="longhorn">Longhorn</SelectItem>
-                      <SelectItem value="none">None (self-managed)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {createStorageProfile === "longhorn" && (
-                  <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
-                    <p className="font-medium">
-                  <a href="https://longhorn.io" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
-                    Longhorn
-                  </a>{" "}strongly suggested
-                </p>
-                    <p className="mt-1">Your stateful pod can travel free across nodes, longhorn can handle your pod storage smoothly.</p>
-                    <p className="mt-1">When you have multiple node and want to migrate a node, just few click on the longhorn UI, you PersistentVolumes get moved, compare to manual copy files.</p>
-                  </div>
-                )}
-                {createStorageProfile === "none" && (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-                    <p className="font-medium">You need to manage your own Storage provider</p>
-                    <p className="mt-1">If no Storage provider is configured, pods that require PersistentVolumes will not work, lots of server software in kubernetes ecosystem rely on PersistentVolumes.</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-            {createError && (
-              <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">{createError}</div>
-            )}
-            <Button onClick={handleCreate} disabled={createCluster.isPending || !name} className="w-full">
-              {createCluster.isPending ? "Creating..." : "Create"}
-            </Button>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create Cluster
+        </Button>
+        <ClusterDialog key={createOpen ? "create-open" : "create-closed"} mode="create" open={createOpen} onOpenChange={setCreateOpen} />
       </div>
 
       <div className="space-y-3">
@@ -318,16 +174,7 @@ export default function ClustersPage() {
                       <TooltipTrigger asChild>
                         <Button variant="ghost" size="icon" disabled={state === "Reconciling"} onClick={async () => {
                           setEditCluster(cluster.metadata.name)
-                          setEditIngressEnabled(cluster.spec.managedIngressProfile?.enabled !== false)
-                          setEditIngressEmail(cluster.spec.managedIngressProfile?.email ?? "")
-                          setEditStorageProfile(cluster.spec.storageProfile?.backend ?? "none")
-                          setEditMonitoringEnabled(cluster.spec.monitoringProfile?.enabled === true)
-                          try {
-                            const apps = await listAppIngresses(cluster.metadata.name)
-                            setEditAppIngressCount(apps.length)
-                          } catch {
-                            setEditAppIngressCount(0)
-                          }
+                          setEditAppIngressCount(await fetchAppIngressCount(cluster.metadata.name))
                         }}>
                           <Settings className="h-4 w-4" />
                         </Button>
@@ -342,12 +189,12 @@ export default function ClustersPage() {
                           setDeleteError("")
                           setDeleteChecking(true)
                           try {
-                            const [nodes, apps] = await Promise.all([
+                            const [nodes, ingressCount] = await Promise.all([
                               listControlPlaneNodes(cluster.metadata.name),
-                              listAppIngresses(cluster.metadata.name),
+                              fetchAppIngressCount(cluster.metadata.name),
                             ])
                             setDeleteNodesCount(nodes.length)
-                            setDeleteAppIngressCount(apps.length)
+                            setDeleteAppIngressCount(ingressCount)
                           } catch {
                             setDeleteNodesCount(0)
                             setDeleteAppIngressCount(0)
@@ -406,160 +253,28 @@ export default function ClustersPage() {
         )}
       </div>
 
-      <Dialog open={!!editCluster} onOpenChange={(o) => { if (!o) setEditCluster(null) }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Cluster Settings — {editCluster}</DialogTitle>
-          </DialogHeader>
-          <Tabs defaultValue="network" className="mt-2">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="network">Network</TabsTrigger>
-              <TabsTrigger value="ingress">AppIngress</TabsTrigger>
-              <TabsTrigger value="storage">Storage</TabsTrigger>
-              <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
-            </TabsList>
-            <TabsContent value="network" className="space-y-4 pt-4">
-              <p className="text-xs text-muted-foreground">Network settings cannot be modified after cluster creation.</p>
-              <div className="space-y-2">
-                <Label>Region</Label>
-                <div className="rounded-md bg-muted px-3 py-2 text-sm">{editCluster && (() => {
-                  const c = clusters.find((cl) => cl.metadata.name === editCluster)
-                  return c?.spec.region ?? "-"
-                })()}</div>
-              </div>
-              <div className="space-y-2">
-                <Label>Node Physical CIDR</Label>
-                <div className="rounded-md bg-muted px-3 py-2 text-sm">{editCluster && (() => {
-                  const c = clusters.find((cl) => cl.metadata.name === editCluster)
-                  return c?.spec.network?.nodePhysicalCIDR ?? "-"
-                })()}</div>
-              </div>
-              <div className="space-y-2">
-                <Label>Pod CIDR</Label>
-                <div className="rounded-md bg-muted px-3 py-2 text-sm">{editCluster && (() => {
-                  const c = clusters.find((cl) => cl.metadata.name === editCluster)
-                  return c?.spec.network?.podCIDR ?? "-"
-                })()}</div>
-              </div>
-              <div className="space-y-2">
-                <Label>Service CIDR</Label>
-                <div className="rounded-md bg-muted px-3 py-2 text-sm">{editCluster && (() => {
-                  const c = clusters.find((cl) => cl.metadata.name === editCluster)
-                  return c?.spec.network?.serviceCIDR ?? "-"
-                })()}</div>
-              </div>
-            </TabsContent>
-            <TabsContent value="ingress" className="space-y-4 pt-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="editIngressEnabled"
-                  checked={editIngressEnabled}
-                  onCheckedChange={(v) => setEditIngressEnabled(v === true)}
-                  disabled={editAppIngressCount > 0}
-                />
-                <Label htmlFor="editIngressEnabled" className={`cursor-pointer text-sm ${editAppIngressCount > 0 ? "text-muted-foreground" : ""}`}>
-                  Enable managed ingress
-                </Label>
-              </div>
-              {editAppIngressCount > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Cannot disable managed ingress while {editAppIngressCount} app ingress{editAppIngressCount !== 1 ? "es" : ""} exist.
-                </p>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="editIngressEmail">Notification email</Label>
-                <Input
-                  id="editIngressEmail"
-                  value={editIngressEmail}
-                  onChange={(e) => setEditIngressEmail(e.target.value)}
-                  placeholder="email from login will be used"
-                  type="email"
-                />
-              </div>
-            </TabsContent>
-            <TabsContent value="storage" className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="editStorageProfile">Storage provider</Label>
-                <Select value={editStorageProfile} onValueChange={setEditStorageProfile}>
-                  <SelectTrigger id="editStorageProfile">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="longhorn">Longhorn</SelectItem>
-                    <SelectItem value="none">None (self-managed)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {editStorageProfile === "longhorn" && (
-                <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
-                  <p className="font-medium">
-                    <a href="https://longhorn.io" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
-                      Longhorn
-                    </a>{" "}strongly suggested
-                  </p>
-                  <p className="mt-1">Your stateful pod can travel free across nodes, longhorn can handle your pod storage smoothly.</p>
-                  <p className="mt-1">When you have multiple node and want to migrate a node, just few click on the longhorn UI, you PersistentVolumes get moved, compare to manual copy files.</p>
-                </div>
-              )}
-              {editStorageProfile === "none" && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-                  <p className="font-medium">You need to manage your own Storage provider</p>
-                  <p className="mt-1">If no Storage provider is configured, pods that require PersistentVolumes will not work, lots of server software in kubernetes ecosystem rely on PersistentVolumes.</p>
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="monitoring" className="space-y-4 pt-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="editMonitoringEnabled"
-                  checked={editMonitoringEnabled}
-                  onCheckedChange={(v) => setEditMonitoringEnabled(v === true)}
-                />
-                <Label htmlFor="editMonitoringEnabled" className="cursor-pointer text-sm">Enable monitoring</Label>
-              </div>
-            </TabsContent>
-          </Tabs>
-          {editError && (
-            <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">{editError}</div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditCluster(null)}>Cancel</Button>
-            <Button onClick={async () => {
-              if (!editCluster) return
-              setEditError("")
-              try {
-                const { cluster, etag } = await (await import("@/lib/api/control-plane")).getClusterETag(editCluster)
-                await (await import("@/lib/api/control-plane")).updateCluster(editCluster, {
-                  metadata: { name: cluster.metadata.name },
-                  spec: {
-                    ...cluster.spec,
-                    managedIngressProfile: { enabled: editIngressEnabled, email: editIngressEmail },
-                    storageProfile: { backend: editStorageProfile === "none" ? "" : editStorageProfile },
-                    monitoringProfile: { enabled: editMonitoringEnabled },
-                  },
-                }, etag)
-                queryClient.invalidateQueries({ queryKey: ["clusters"] })
-                setEditCluster(null)
-              } catch (e) {
-                setEditError(e instanceof Error ? e.message : "Failed to update cluster")
-              }
-            }}>
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {editCluster && (
+        <ClusterDialog
+          key={`edit-${editCluster}`}
+          mode="edit"
+          open={!!editCluster}
+          onOpenChange={(o) => { if (!o) setEditCluster(null) }}
+          cluster={clusters.find((c) => c.metadata.name === editCluster)}
+          appIngressCount={editAppIngressCount}
+        />
+      )}
 
       <Dialog open={!!kubeconfigTarget} onOpenChange={(o) => { if (!o) { setKubeconfigTarget(null); setCertBased(false) } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Download Kubeconfig</DialogTitle>
             <DialogDescription>
-              Your kubeconfig uses OIDC authentication. Install{" "}
+              Kubeconfig can be used with any Kubernetes management tooling that you prefers. This
+              cluster use openID authentication,{" "}
               <a href="https://github.com/int128/kubelogin#setup" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2">
                 kubelogin <ExternalLink className="h-3 w-3" />
               </a>{" "}
-              to authenticate:
+              is required for login.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -573,7 +288,7 @@ kubectl krew install oidc-login
 choco install kubelogin`}</pre>
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input type="checkbox" checked={certBased} onChange={(e) => setCertBased(e.target.checked)} className="mt-0.5" />
-              <span>Download cert-based kubeconfig (bypasses OIDC login prompt)</span>
+              <span>Download cert-based kubeconfig (not recommended)</span>
             </label>
           </div>
           <DialogFooter>
