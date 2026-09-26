@@ -259,3 +259,191 @@ export const MOCK_TOKEN_PAYLOAD = {
   email: "demo@kubehub.local",
   preferred_username: "local-user",
 }
+
+/** Mirrors the Alertmanager v2 payload that GET /alerts forwards. */
+const ago = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString()
+const ahead = (seconds: number) => new Date(Date.now() + seconds * 1000).toISOString()
+
+export const MOCK_ALERTS = [
+  {
+    labels: {
+      alertname: "NodeDown",
+      severity: "critical",
+      cluster: "alerted",
+      node: "ubuntu-alerted",
+    },
+    annotations: {
+      summary: "Node ubuntu-alerted is down",
+      description: "Kubelet metrics scrape is down on node ubuntu-alerted",
+    },
+    status: { state: "active", silencedBy: [], inhibitedBy: [], mutedBy: [] },
+    startsAt: ago(6 * 3600),
+    endsAt: ahead(3600),
+    updatedAt: ago(300),
+    generatorURL: "/graph?g0.expr=up%20%7B%20job%3D%22node%22%20%7D%20%3D%3D%200",
+    fingerprint: "88ff9373df885b48",
+    receivers: [{ name: "tgbot-kubehub" }],
+    region: "us-east",
+  },
+  {
+    labels: {
+      alertname: "KubePodCrashLooping",
+      severity: "warning",
+      cluster: "alerted",
+      namespace: "payments",
+      pod: "checkout-5f7d-9c1b",
+    },
+    annotations: {
+      summary: "Pod checkout-5f7d-9c1b is restarting repeatedly",
+      description: "Back-off restarting failed container checkout",
+    },
+    status: { state: "active", silencedBy: [], inhibitedBy: [], mutedBy: [] },
+    startsAt: ago(45 * 60),
+    endsAt: ahead(3600),
+    updatedAt: ago(120),
+    fingerprint: "3b1c9f0a44d21e77",
+    receivers: [{ name: "tgbot-kubehub" }],
+    region: "us-east",
+  },
+  {
+    labels: {
+      alertname: "NodeMemoryPressure",
+      severity: "warning",
+      cluster: "alerted",
+      node: "worker-2",
+    },
+    annotations: {
+      summary: "Node worker-2 is under memory pressure",
+      description: "Node allocatable memory is below the 15% threshold",
+    },
+    status: { state: "active", silencedBy: [], inhibitedBy: [], mutedBy: [] },
+    startsAt: ago(12 * 60),
+    endsAt: ahead(3600),
+    updatedAt: ago(60),
+    fingerprint: "c7d41e9b2a0f6b13",
+    receivers: [{ name: "tgbot-kubehub" }],
+    region: "eu-central",
+  },
+  {
+    labels: {
+      alertname: "EtcdLeaderChange",
+      severity: "info",
+      cluster: "alerted",
+    },
+    annotations: { summary: "Etcd leadership changed" },
+    status: { state: "active", silencedBy: [], inhibitedBy: [], mutedBy: [] },
+    startsAt: ago(90),
+    endsAt: ahead(3600),
+    updatedAt: ago(90),
+    fingerprint: "5e2f7a0c9b3d1846",
+    receivers: [{ name: "tgbot-kubehub" }],
+    region: "eu-central",
+  },
+  {
+    labels: { alertname: "Watchdog", severity: "none", cluster: "alerted" },
+    annotations: {},
+    status: { state: "suppressed", silencedBy: ["weekend"], inhibitedBy: [], mutedBy: [] },
+    startsAt: ago(24 * 3600),
+    endsAt: ahead(3600),
+    updatedAt: ago(600),
+    fingerprint: "9a10bc7d3e5f4821",
+    receivers: [{ name: "tgbot-kubehub" }],
+    region: "us-west",
+  },
+]
+
+export const MOCK_RULE_NAMESPACES: Record<string, unknown> = {
+  platform: {
+    name: "platform",
+    groups: [
+      {
+        name: "cluster-availability",
+        interval: "30s",
+        rules: [
+          {
+            alert: "TargetDown",
+            expr: 'up{job=~".+"} == 0',
+            for: "5m",
+            labels: { severity: "critical" },
+            annotations: { summary: "Target {{ $labels.instance }} is down" },
+          },
+          {
+            alert: "NodeNotReady",
+            expr: 'kube_node_status_condition{condition="Ready",status="true"} == 0',
+            for: "10m",
+            labels: { severity: "warning" },
+            annotations: { summary: "Node {{ $labels.instance }} has been unready for 10m" },
+          },
+        ],
+      },
+      {
+        name: "workload-health",
+        interval: "1m",
+        rules: [
+          {
+            alert: "KubePodCrashLooping",
+            expr: 'rate(kube_pod_container_status_restarts_total[10m]) * 600 > 3',
+            for: "5m",
+            labels: { severity: "warning" },
+            annotations: { summary: "Pod {{ $labels.pod }} is restarting repeatedly" },
+          },
+          {
+            expr: 'sum by (namespace) (kube_pod_status_phase{phase="Pending"})',
+            labels: { kind: "recording" },
+          },
+        ],
+      },
+    ],
+  },
+  payments: {
+    name: "payments",
+    groups: [
+      {
+        name: "latency",
+        interval: "30s",
+        rules: [
+          {
+            alert: "CheckoutLatencyHigh",
+            expr: 'histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1.5',
+            for: "10m",
+            labels: { severity: "critical", team: "payments" },
+            annotations: { summary: "Checkout p99 latency above 1.5s" },
+          },
+        ],
+      },
+    ],
+  },
+}
+
+export const MOCK_ALERTMANAGER_CONFIG = {
+  route: {
+    receiver: "teams-oncall",
+    group_by: ["alertname", "cluster"],
+    group_wait: "30s",
+    group_interval: "5m",
+    repeat_interval: "4h",
+    routes: [{ receiver: "telegram-digest", matchers: ['severity="info"'], continue: true }],
+  },
+  receivers: [
+    {
+      name: "teams-oncall",
+      msteams_configs: [
+        {
+          webhook_url: "https://outlook.office.com/webhook/mock-teams-oncall",
+          send_resolved: true,
+        },
+      ],
+    },
+    {
+      name: "telegram-digest",
+      telegram_configs: [
+        {
+          bot_token: "123456789:AAmocktokenmocktokenmocktoken",
+          chat_id: -1001234567890,
+          disable_notifications: false,
+          send_resolved: true,
+        },
+      ],
+    },
+  ],
+}

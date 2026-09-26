@@ -1,0 +1,950 @@
+openapi: 3.0.0
+info:
+  title: Kubehub API
+  version: v202607
+  description: Public API for HKS cluster management
+servers:
+  - url: /apis/v202607
+    description: Kubehub API
+paths:
+  /clusters:
+    get:
+      summary: List clusters
+      description: List all clusters for the authenticated user
+      operationId: listClusters
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of clusters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Cluster'
+        '401':
+          description: Unauthorized
+    post:
+      summary: Create cluster
+      description: Create a new cluster
+      operationId: createCluster
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClusterRequest'
+      responses:
+        '200':
+          description: Cluster created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cluster'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '409':
+          description: Cluster already exists
+  /clusters/{name}:
+    get:
+      summary: Get cluster
+      description: Get a specific cluster by name
+      operationId: getCluster
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cluster details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cluster'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
+    put:
+      summary: Update cluster
+      description: Update an existing cluster
+      operationId: updateCluster
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClusterRequest'
+      responses:
+        '200':
+          description: Cluster updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cluster'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
+    delete:
+      summary: Delete cluster
+      description: Delete a specific cluster by name. Requires If-Match header for optimistic concurrency. Checks for existing nodes and app ingresses before deletion; use forceDelete query parameter to bypass those checks.
+      operationId: deleteCluster
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: If-Match
+          in: header
+          required: true
+          description: ETag for optimistic concurrency
+          schema:
+            type: string
+        - name: forceDelete
+          in: query
+          required: false
+          description: Set to true to force delete the cluster even if it has existing nodes or app ingresses
+          schema:
+            type: boolean
+      responses:
+        '204':
+          description: Cluster deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
+        '409':
+          description: Conflict - cluster has existing nodes or app ingresses
+        '428':
+          description: Precondition Required - If-Match header is required
+  /clusters/{name}/downloadkubeconfig:
+    post:
+      summary: Download kubeconfig
+      description: Download kubeconfig for a cluster. Returns OIDC-based kubeconfig by default, or cert-based admin kubeconfig when certbased=true.
+      operationId: downloadKubeconfig
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: certbased
+          in: query
+          required: false
+          description: When true, returns a cert-based admin kubeconfig using mTLS credentials. Default is false (OIDC-based).
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Kubeconfig
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KubeconfigResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
+  /clusters/{cluster}/nodes:
+    get:
+      summary: List nodes
+      description: List all nodes for a cluster
+      operationId: listNodes
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Node'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
+    post:
+      summary: Create node
+      description: Create a node resource. The node must exist before calling bootstrapSecret.
+      operationId: createNode
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Node'
+      responses:
+        '200':
+          description: Node created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
+  /clusters/{cluster}/nodes/{node}/bootstrapSecret:
+    post:
+      summary: Bootstrap node
+      description: Generate bootstrap secret (CA cert and mTLS cert pairs) for a node. The node must be created first via POST /nodes.
+      operationId: bootstrapNode
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: node
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bootstrap secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapSecretResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster or node not found
+  /clusters/{cluster}/nodes/{node}:
+    get:
+      summary: Get node
+      description: Get a specific node by name
+      operationId: getNode
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: node
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Node details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Node not found
+    put:
+      summary: Update node
+      description: Update an existing node
+      operationId: updateNode
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: node
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Node'
+      responses:
+        '200':
+          description: Node updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Node not found
+    delete:
+      summary: Delete node
+      description: Delete a specific node by name
+      operationId: deleteNode
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: node
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Node deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: Node not found
+  /clusters/{cluster}/appIngresses:
+    get:
+      summary: List app ingresses
+      description: List all app ingresses for a cluster
+      operationId: listAppIngresses
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of app ingresses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AppIngress'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
+    post:
+      summary: Create app ingress
+      description: Create a new app ingress for a cluster
+      operationId: createAppIngress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppIngress'
+      responses:
+        '200':
+          description: App ingress created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppIngress'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
+        '409':
+          description: App ingress already exists
+  /clusters/{cluster}/appIngresses/{appName}:
+    get:
+      summary: Get app ingress
+      description: Get a specific app ingress by name
+      operationId: getAppIngress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: appName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: App ingress details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppIngress'
+        '401':
+          description: Unauthorized
+        '404':
+          description: App ingress not found
+    put:
+      summary: Update app ingress
+      description: Update an existing app ingress
+      operationId: updateAppIngress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: appName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppIngress'
+      responses:
+        '200':
+          description: App ingress updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppIngress'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '404':
+          description: App ingress not found
+    delete:
+      summary: Delete app ingress
+      description: Delete a specific app ingress by name
+      operationId: deleteAppIngress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cluster
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: appName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: App ingress deleted
+        '401':
+          description: Unauthorized
+        '404':
+          description: App ingress not found
+  /metadata:
+    get:
+      summary: Get metadata
+      description: Get available regions and other metadata
+      operationId: getMetadata
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetadataResponse'
+        '401':
+          description: Unauthorized
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Cluster:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          description: API version
+        kind:
+          type: string
+          description: Resource kind
+        metadata:
+          $ref: '#/components/schemas/ClusterMetadata'
+        spec:
+          $ref: '#/components/schemas/ClusterSpec'
+        status:
+          $ref: '#/components/schemas/ClusterStatus'
+    ClusterMetadata:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Cluster name
+        etag:
+          type: string
+          description: Entity tag for optimistic concurrency
+          readOnly: true
+    ManagedIngressProfile:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether the cluster's ingresses are managed automatically
+        email:
+          type: string
+          description: Let's Encrypt email for automatic certificate provisioning
+    ClusterSpec:
+      type: object
+      properties:
+        region:
+          type: string
+          description: Cluster region
+        network:
+          $ref: '#/components/schemas/Network'
+        managedIngressProfile:
+          $ref: '#/components/schemas/ManagedIngressProfile'
+        storageProfile:
+          $ref: '#/components/schemas/StorageProfile'
+        monitoringProfile:
+          $ref: '#/components/schemas/MonitoringProfile'
+    ComponentProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Component ID
+        version:
+          type: string
+          description: Component version
+        dependencies:
+          type: array
+          items:
+            type: string
+          description: Component dependencies
+    ClusterStatus:
+      type: object
+      properties:
+        publicDns:
+          type: string
+          description: Cluster public DNS
+        localDnsDomain:
+          type: string
+          description: Local DNS domain derived from the cluster's managed ingress profile
+          readOnly: true
+        state:
+          type: string
+          description: Cluster state
+        controlPlaneComponents:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ComponentProfile'
+          description: Cluster control plane components
+        addonComponents:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ComponentProfile'
+          description: Cluster addon components
+        lastOperation:
+          $ref: '#/components/schemas/OperationStatus'
+    ClusterRequest:
+      type: object
+      properties:
+        metadata:
+          $ref: '#/components/schemas/ClusterMetadata'
+        spec:
+          $ref: '#/components/schemas/ClusterSpec'
+    Network:
+      type: object
+      properties:
+        podCIDR:
+          type: string
+          description: Pod CIDR (e.g., 10.10.0.0/16)
+        serviceCIDR:
+          type: string
+          description: Service CIDR (e.g., 10.20.0.0/16)
+        kubeDNSServiceIP:
+          type: string
+          description: CoreDNS service IP (e.g., 10.20.0.10)
+        managedIngress:
+          type: boolean
+          description: "Whether the cluster's ingresses are managed automatically (default: true)"
+          default: true
+          deprecated: true
+    StorageBackend:
+      type: string
+      description: Storage backend provider
+      enum:
+        - ""
+        - longhorn
+    StorageProfile:
+      type: object
+      properties:
+        backend:
+          $ref: '#/components/schemas/StorageBackend'
+    MonitoringProfile:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether monitoring is enabled for the cluster
+    Node:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          description: API version
+        kind:
+          type: string
+          description: Resource kind
+        metadata:
+          $ref: '#/components/schemas/NodeMetadata'
+        spec:
+          $ref: '#/components/schemas/NodeSpec'
+        status:
+          $ref: '#/components/schemas/NodeStatus'
+    NodeMetadata:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Node name
+        etag:
+          type: string
+          description: Entity tag for optimistic concurrency
+          readOnly: true
+    NodeSpec:
+      type: object
+      properties:
+        os:
+          type: string
+          description: Operating system
+        arch:
+          type: string
+          description: Architecture
+        meta:
+          $ref: '#/components/schemas/NodeInfo'
+        hardware:
+          $ref: '#/components/schemas/HardwareInfo'
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+          description: Node annotations
+        taints:
+          type: array
+          items:
+            $ref: '#/components/schemas/Taint'
+          description: Node taints
+    NodeStatus:
+      type: object
+      properties:
+        ready:
+          type: boolean
+          description: Node ready status
+        lastOperation:
+          $ref: '#/components/schemas/OperationStatus'
+    NodeInfo:
+      type: object
+      properties:
+        ipv4:
+          type: string
+          description: IPv4 address
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          description: Node labels
+    HardwareInfo:
+      type: object
+      properties:
+        cpus:
+          type: array
+          items:
+            $ref: '#/components/schemas/CPU'
+          description: CPUs
+        memory:
+          $ref: '#/components/schemas/Memory'
+        isVirtual:
+          type: boolean
+          description: Whether this is a VM or physical machine
+    CPU:
+      type: object
+      properties:
+        model:
+          type: string
+          description: CPU model
+        cores:
+          type: integer
+          description: Number of cores
+    Memory:
+      type: object
+      properties:
+        total_in_mb:
+          type: integer
+          description: Total memory in MB
+    Taint:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Taint key
+        value:
+          type: string
+          description: Taint value
+        effect:
+          type: string
+          description: Taint effect (NoSchedule, PreferNoSchedule, NoExecute)
+    BootstrapSecretResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        ip:
+          type: string
+        clusterDNS:
+          type: string
+        caCert:
+          type: string
+        certPairs:
+          $ref: '#/components/schemas/CertPairCollection'
+    CertPairCollection:
+      type: object
+      properties:
+        kubelet:
+          $ref: '#/components/schemas/CertPair'
+        controllerManager:
+          $ref: '#/components/schemas/CertPair'
+        scheduler:
+          $ref: '#/components/schemas/CertPair'
+    CertPair:
+      type: object
+      properties:
+        'tls.crt':
+          type: string
+        'tls.key':
+          type: string
+    KubeconfigResponse:
+      type: object
+      properties:
+        kubeconfig:
+          type: string
+          description: Base64 encoded kubeconfig
+    AppIngress:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+          description: API version
+        kind:
+          type: string
+          description: Resource kind
+        metadata:
+          $ref: '#/components/schemas/AppIngressMetadata'
+        spec:
+          $ref: '#/components/schemas/AppIngressSpec'
+        status:
+          $ref: '#/components/schemas/AppIngressStatus'
+    AppIngressMetadata:
+      type: object
+      properties:
+        name:
+          type: string
+          description: App ingress name
+        etag:
+          type: string
+          description: Entity tag for optimistic concurrency
+          readOnly: true
+    AppIngressSpec:
+      type: object
+      properties:
+        serviceBackend:
+          $ref: '#/components/schemas/ServiceBackend'
+        exposeToPublic:
+          type: boolean
+          description: Expose to public internet
+        exposeToLocal:
+          type: boolean
+          description: Expose locally within the cluster
+        routesByPrefix:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ServiceBackend'
+          description: Routes by URL prefix to service backends
+        protocol:
+          type: string
+          description: Protocol (HTTP or TLS, defaults to HTTP)
+          enum: [HTTP, TLS]
+          default: HTTP
+        customDomain:
+          type: string
+          description: Custom domain for public access (must CNAME to the public DNS)
+    PublicDNSStatus:
+      type: object
+      properties:
+        programed:
+          type: boolean
+          description: Whether the public HTTPRoute is accepted by the underlay gateway
+        message:
+          type: string
+          description: Status message if not programmed
+    LocalDNSStatus:
+      type: object
+      properties:
+        certProvisioned:
+          type: boolean
+          description: Whether the TLS certificate is provisioned on the local gateway listener
+        programed:
+          type: boolean
+          description: Whether the local HTTPRoute is accepted by the gateway
+        message:
+          type: string
+          description: Status message if not fully provisioned
+    ProgramStatus:
+      type: object
+      properties:
+        publicDNS:
+          $ref: '#/components/schemas/PublicDNSStatus'
+        localDNS:
+          $ref: '#/components/schemas/LocalDNSStatus'
+    AppIngressStatus:
+      type: object
+      properties:
+        publicDns:
+          type: string
+          description: Public DNS
+        localDNS:
+          type: string
+          description: Local DNS
+        programStatus:
+          $ref: '#/components/schemas/ProgramStatus'
+        state:
+          type: string
+          description: App ingress state
+        lastOperation:
+          $ref: '#/components/schemas/OperationStatus'
+    ServiceBackend:
+      type: object
+      properties:
+        serviceName:
+          type: string
+          description: Kubernetes service name
+        namespace:
+          type: string
+          description: Kubernetes namespace
+        port:
+          type: integer
+          description: Service port
+    ApiError:
+      type: object
+      description: Structured API error response
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code (e.g. VALIDATION_ERROR, NOT_FOUND)
+            message:
+              type: string
+              description: Human-readable error message
+          required:
+            - code
+            - message
+      required:
+        - error
+    MetadataResponse:
+      type: object
+      properties:
+        regions:
+          type: array
+          items:
+            type: string
+          description: Available regions
+    OperationStatus:
+      type: object
+      properties:
+        operationName:
+          type: string
+          description: Name of the operation
+        stepName:
+          type: string
+          description: Current step within the operation
+        startedOn:
+          type: string
+          format: date-time
+          description: When the operation started
+        finishedAt:
+          type: string
+          format: date-time
+          description: When the operation finished (null if still running)
+        error:
+          $ref: '#/components/schemas/OperationError'
+    OperationError:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
