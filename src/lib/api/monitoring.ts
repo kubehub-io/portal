@@ -160,7 +160,8 @@ function buildAlertQuery(params?: AlertsQuery): string {
 }
 
 export async function listAlerts(params?: AlertsQuery): Promise<Alert[]> {
-  const res = await authFetch(`${API_BASE}/alerts${buildAlertQuery(params)}`)
+  // This endpoint is polled, so it must never be served from the HTTP cache.
+  const res = await authFetch(`${API_BASE}/alerts${buildAlertQuery(params)}`, { cache: "no-store" })
   const data = (await res.json()) as Alert[] | { alerts?: Alert[] }
   return Array.isArray(data) ? data : (data.alerts ?? [])
 }

@@ -17,7 +17,7 @@ import {
   type Alert,
   type AlertSeverity,
 } from "@/lib/api/monitoring"
-import { BellRing, Loader2, TriangleAlert } from "lucide-react"
+import { BellRing, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const SEVERITY_BADGE: Record<AlertSeverity, "destructive" | "warning" | "info" | "secondary"> = {
@@ -104,11 +104,7 @@ export function AlertWarningButton() {
           title={`${alerts.length} active alert${alerts.length === 1 ? "" : "s"}`}
           aria-label={`${alerts.length} active alerts`}
         >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <TriangleAlert className="h-4 w-4" />
-          )}
+          <TriangleAlert className="h-4 w-4" />
           <span
             className={cn(
               "absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white",

@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import * as monitoring from "@/lib/api/monitoring"
 import { useAuthStore } from "@/stores/auth-store"
 
-const ALERTS_REFRESH_MS = 15_000
+/** Alerts change slowly, so poll every two minutes. */
+const ALERTS_REFRESH_MS = 120_000
 
 export function useAlerts(options?: { refetchInterval?: number; enabled?: boolean }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -14,6 +15,9 @@ export function useAlerts(options?: { refetchInterval?: number; enabled?: boolea
     queryFn: () => monitoring.listAlerts(),
     enabled: (options?.enabled ?? true) && isAuthenticated,
     refetchInterval: options?.refetchInterval ?? ALERTS_REFRESH_MS,
+    // Keep polling while the tab is in the background: refetchOnWindowFocus is
+    // disabled globally, so otherwise the list would freeze at first load.
+    refetchIntervalInBackground: true,
     retry: 1,
   })
 }
