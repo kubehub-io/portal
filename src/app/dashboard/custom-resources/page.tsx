@@ -183,7 +183,7 @@ function ResourceTypeCombobox({
                     />
                     {t.kind}
                     <span className="ml-auto text-xs text-muted-foreground">
-                      {t.namespaced ? "Namespaced" : "Cluster"}
+                      {t.version}
                     </span>
                   </button>
                 ))}
