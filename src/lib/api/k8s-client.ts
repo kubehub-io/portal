@@ -250,3 +250,21 @@ export async function listEvents(
   if (!res.ok) throw new Error(`Failed to list events: ${res.statusText}`)
   return res.json()
 }
+
+export interface CoreAPIResource {
+  name: string
+  singularName: string
+  kind: string
+  namespaced: boolean
+  verbs: string[]
+  shortNames?: string[]
+  categories?: string[]
+}
+
+export async function listCoreAPIResources(
+  cluster: Cluster,
+): Promise<{ kind: string; apiVersion: string; groupVersion: string; resources: CoreAPIResource[] }> {
+  const res = await k8sFetch(cluster, "/api/v1")
+  if (!res.ok) throw new Error("Failed to list core API resources")
+  return res.json()
+}

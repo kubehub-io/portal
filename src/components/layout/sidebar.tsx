@@ -65,6 +65,7 @@ export function Sidebar() {
         { label: "AppIngress", href: "/dashboard/appingresses", icon: <Globe className="h-4 w-4" /> },
         { label: "Shell", href: "/dashboard/shell", icon: <Terminal className="h-4 w-4" /> },
         { label: "Apply", href: "/dashboard/apply", icon: <FilePlus className="h-4 w-4" /> },
+        { label: "Custom Resources", href: "/dashboard/custom-resources", icon: <Boxes className="h-4 w-4" /> },
       ],
     },
     {
