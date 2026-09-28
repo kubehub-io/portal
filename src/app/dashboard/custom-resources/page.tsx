@@ -81,15 +81,6 @@ function formatAge(timestamp: string | undefined): string {
   return `${totalSec}s`
 }
 
-function getNestedValue(obj: unknown, path: string): unknown {
-  return path.split(".").reduce((acc: unknown, key: string) => {
-    if (acc && typeof acc === "object" && key in (acc as Record<string, unknown>)) {
-      return (acc as Record<string, unknown>)[key]
-    }
-    return undefined
-  }, obj)
-}
-
 function ResourceTypeCombobox({
   types,
   value,
