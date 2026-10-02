@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import dynamic from "next/dynamic"
 import { yaml } from "@codemirror/lang-yaml"
 import type { Extension } from "@codemirror/state"
+import { EditorView } from "@codemirror/view"
 import { useTheme } from "@/components/theme-provider"
 
 const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), {
@@ -14,6 +15,19 @@ const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), {
     </div>
   ),
 })
+
+/**
+ * Hard ceiling on the editor box. Without it a very long line can inflate the
+ * editor's intrinsic size, which leaks up the flex/percentage chain and pushes
+ * anything laid out after the editor (e.g. a Save/Cancel footer) out of view.
+ */
+const containmentTheme = EditorView.theme({
+  "&": { maxWidth: "100%", maxHeight: "100%" },
+  "& .cm-content": { maxWidth: "100%" },
+})
+
+/** Long lines wrap instead of scrolling sideways, keeping the box at 100%. */
+const lineWrapping = EditorView.lineWrapping
 
 export interface YamlEditorProps {
   value: string
@@ -34,13 +48,16 @@ export function YamlEditor({
   className,
   extensions,
 }: YamlEditorProps) {
-  const baseExtensions = useMemo(() => [yaml(), ...(extensions ?? [])], [extensions])
+  const baseExtensions = useMemo(
+    () => [lineWrapping, containmentTheme, yaml(), ...(extensions ?? [])],
+    [extensions],
+  )
   const { resolvedTheme } = useTheme()
 
   return (
     <div
-      className={`overflow-hidden rounded-md border ${className ?? ""}`}
-      style={{ height }}
+      className={`min-w-0 overflow-hidden rounded-md border ${className ?? ""}`}
+      style={{ height, maxHeight: "100%" }}
     >
       <CodeMirror
         value={value}
