@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.18.0",
+  "packageManager": "pnpm@12.8.1",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -55,9 +55,9 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "16.2.12",
     "jsdom": "^30.0.1",
+    "serve": "latest",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
-    "vitest": "^5.0.2",
-    "serve": "latest"
+    "vitest": "^5.0.2"
   }
 }
