@@ -132,9 +132,9 @@ export function ResourceYamlEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!w-[60vw] !h-[70vh] !max-w-none" resizable>
-        <div className="flex h-full min-h-0 flex-col gap-4">
-          <DialogHeader>
+      <DialogContent className="w-[60vw] h-[70vh]" resizable>
+        <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>{title ?? `Edit ${desc.resource}`}</DialogTitle>
             <DialogDescription>
               <code className="rounded bg-muted px-1">{name}</code>
@@ -142,7 +142,7 @@ export function ResourceYamlEditDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0">
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {loadError ? (
               <div className="flex h-full items-center overflow-auto rounded-md border border-destructive/50 p-3 text-sm text-destructive">{loadError}</div>
             ) : loadMutation.isPending ? (
@@ -154,23 +154,27 @@ export function ResourceYamlEditDialog({
             )}
           </div>
 
-          {parseError && <p className="text-sm text-destructive">{parseError}</p>}
+          {parseError && (
+            <p className="max-h-24 shrink-0 overflow-y-auto break-words text-sm text-destructive">
+              {parseError}
+            </p>
+          )}
 
-          <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 border-t bg-background px-6 py-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateMutation.isPending}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={loadMutation.isPending || updateMutation.isPending}>
-            {updateMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving…
-              </>
-            ) : (
-              "Save"
-            )}
-          </Button>
-        </DialogFooter>
+          <DialogFooter className="shrink-0 -mx-6 -mb-6 border-t bg-background px-6 py-3">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateMutation.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={loadMutation.isPending || updateMutation.isPending}>
+              {updateMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>
