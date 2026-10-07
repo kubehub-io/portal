@@ -203,7 +203,7 @@ export default function NodesPage() {
       })
       return list.items ?? []
     },
-    enabled: !!activeCluster && !!clusterDns,
+    enabled: !!activeCluster && !!clusterDns && !isOffline,
     retry: false,
     refetchInterval: 10_000,
   })

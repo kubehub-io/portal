@@ -490,9 +490,8 @@ export default function AppIngressesPage() {
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-7 w-7 text-destructive hover:text-destructive", isOffline && "pointer-events-none opacity-50")}
+            className={cn("h-7 w-7 text-destructive hover:text-destructive")}
             onClick={() => setDeleteTarget((item.metadata as Record<string, unknown>)?.name as string)}
-            disabled={isOffline}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -523,7 +522,7 @@ export default function AppIngressesPage() {
       {isOffline && (
         <div className="flex items-center gap-2 rounded-md border border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-200">
           <Info className="h-4 w-4 shrink-0" />
-          Cluster is offline — app ingresses are not available
+          Cluster is offline — editing is disabled, deleting is still allowed. Kubernetes resources are cleaned up on the next reconcile.
         </div>
       )}
       {!isOffline && !managedIngress && (

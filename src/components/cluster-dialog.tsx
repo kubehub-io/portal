@@ -168,7 +168,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
               </p>
             )}
             <div className="space-y-2">
-              <Label htmlFor="ingressEmail">{mode === "create" ? "LetsEncrypt Notification email" : "Notification email"}</Label>
+              <Label htmlFor="ingressEmail">LetsEncrypt Notification email</Label>
               <Input
                 id="ingressEmail"
                 value={ingressEmail}

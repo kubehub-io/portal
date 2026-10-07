@@ -1,6 +1,13 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useSyncExternalStore,
+} from "react"
 
 type Theme = "light" | "dark" | "system"
 
@@ -20,6 +27,12 @@ function getSystemTheme(): "light" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 }
 
+function subscribeToSystemTheme(onChange: () => void) {
+  const mq = window.matchMedia("(prefers-color-scheme: dark)")
+  mq.addEventListener("change", onChange)
+  return () => mq.removeEventListener("change", onChange)
+}
+
 function getStoredTheme(): Theme {
   if (typeof window === "undefined") return "system"
   return (localStorage.getItem("theme") as Theme) ?? "system"
@@ -27,26 +40,17 @@ function getStoredTheme(): Theme {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getStoredTheme)
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light")
+  const systemTheme = useSyncExternalStore(
+    subscribeToSystemTheme,
+    getSystemTheme,
+    () => "light" as const,
+  )
+
+  const resolvedTheme: "light" | "dark" = theme === "system" ? systemTheme : theme
 
   useEffect(() => {
-    const resolved = theme === "system" ? getSystemTheme() : theme
-    setResolvedTheme(resolved)
-    applyTheme(resolved)
-  }, [theme])
-
-  useEffect(() => {
-    if (theme !== "system") return
-
-    const mq = window.matchMedia("(prefers-color-scheme: dark)")
-    const handler = () => {
-      const resolved = mq.matches ? "dark" : "light"
-      setResolvedTheme(resolved)
-      applyTheme(resolved)
-    }
-    mq.addEventListener("change", handler)
-    return () => mq.removeEventListener("change", handler)
-  }, [theme])
+    applyTheme(resolvedTheme)
+  }, [resolvedTheme])
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t)
