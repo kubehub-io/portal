@@ -151,7 +151,7 @@ export function Sidebar() {
                   {clusters.map((c) => {
                     const stopped = c.status?.state?.toLowerCase() === "stopped"
                     return (
-                      <SelectItem key={c.metadata.name} value={c.metadata.name} disabled={stopped}>
+                      <SelectItem key={c.metadata.name} value={c.metadata.name}>
                         {c.metadata.name}
                         {stopped && <span className="ml-2 text-muted-foreground">(Stopped)</span>}
                       </SelectItem>

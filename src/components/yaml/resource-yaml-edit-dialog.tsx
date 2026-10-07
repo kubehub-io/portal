@@ -19,10 +19,9 @@ import { Loader2, Pencil } from "lucide-react"
 
 function cleanForEdit(obj: Record<string, unknown>): Record<string, unknown> {
   const clone = JSON.parse(JSON.stringify(obj)) as Record<string, unknown>
-  delete clone.status
   if (clone.metadata && typeof clone.metadata === "object") {
     const meta = clone.metadata as Record<string, unknown>
-    const drop = ["uid", "creationTimestamp", "generation", "selfLink", "managedFields", "resourceVersion"]
+    const drop = ["selfLink", "managedFields"]
     for (const key of drop) delete meta[key]
     if (Array.isArray(meta.ownerReferences)) {
       meta.ownerReferences = (meta.ownerReferences as Record<string, unknown>[]).map((o) => {
@@ -94,6 +93,13 @@ export function ResourceYamlEditDialog({
     mutationFn: async () => {
       const parsed = yaml.load(value)
       if (!parsed || typeof parsed !== "object") throw new Error("Invalid YAML: must be a valid object")
+      const meta = (parsed as Record<string, unknown>).metadata
+      if (meta && typeof meta === "object") {
+        const m = meta as Record<string, unknown>
+        if (m.resourceVersion !== undefined && m.resourceVersion !== null) {
+          m.resourceVersion = String(m.resourceVersion)
+        }
+      }
       return updateK8sResource(cluster!, namespace ?? null, desc, name, parsed)
     },
     onSuccess: () => {

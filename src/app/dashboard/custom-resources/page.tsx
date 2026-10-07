@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useState, useMemo } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAPIDiscovery } from "@/hooks/use-api-discovery"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
@@ -13,6 +13,7 @@ import {
 import {
   listClusterScopedResources,
   listNamespaceScopedResources,
+  deleteK8sResource,
   type ResourceDescriptor,
   type K8sResource,
 } from "@/lib/api/k8s-client"
@@ -20,13 +21,21 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
+import { Check, ChevronsUpDown, Loader2, Trash2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 10
@@ -256,9 +265,11 @@ export default function CustomResourcesPage() {
   }, [crdData])
 
   const [currentPage, setCurrentPage] = useState(1)
-  useEffect(() => {
+  const [paginationScope, setPaginationScope] = useState({ typeKey: selectedTypeKey, namespace })
+  if (paginationScope.typeKey !== selectedTypeKey || paginationScope.namespace !== namespace) {
+    setPaginationScope({ typeKey: selectedTypeKey, namespace })
     setCurrentPage(1)
-  }, [selectedTypeKey, namespace])
+  }
 
   const desc: ResourceDescriptor | null = selectedType
     ? {
@@ -365,7 +376,20 @@ export default function CustomResourcesPage() {
   const paginatedItems = items.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const [editTarget, setEditTarget] = useState<{ name: string; namespace?: string } | null>(null)
-  const queryKey = selectedType ? `custom-resources-${selectedType.plural}` : "custom-resources"
+  const [deleteTarget, setDeleteTarget] = useState<{ name: string; namespace?: string } | null>(
+    null,
+  )
+  const [deleteError, setDeleteError] = useState("")
+  const queryClient = useQueryClient()
+  const queryKey = "custom-resources"
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ name, namespace: ns }: { name: string; namespace?: string }) =>
+      deleteK8sResource(activeCluster!, ns ?? null, desc!, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["custom-resources"] })
+    },
+  })
 
   return (
     <div className="space-y-6">
@@ -424,16 +448,31 @@ export default function CustomResourcesPage() {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
-          actions={(item) => (
-            <EditResourceButton
-              onClick={() =>
-                setEditTarget({
-                  name: (item.metadata as Record<string, string>).name,
-                  namespace: (item.metadata as Record<string, string>).namespace,
-                })
-              }
-            />
-          )}
+          actions={(item) => {
+            const meta = item.metadata as Record<string, string>
+            const deleting = deleteMutation.isPending && deleteMutation.variables?.name === meta.name
+            return (
+              <div className="flex items-center gap-1">
+                <EditResourceButton
+                  onClick={() =>
+                    setEditTarget({
+                      name: meta.name,
+                      namespace: meta.namespace,
+                    })
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={deleting}
+                  onClick={() => setDeleteTarget({ name: meta.name, namespace: meta.namespace })}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              </div>
+            )
+          }}
         />
       )}
 
@@ -456,6 +495,71 @@ export default function CustomResourcesPage() {
           queryKey={queryKey}
           title={`Edit ${selectedType.kind}`}
         />
+      )}
+
+      {selectedType && (
+        <Dialog
+          open={!!deleteTarget}
+          onOpenChange={(o) => {
+            if (!o) {
+              setDeleteTarget(null)
+              setDeleteError("")
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Delete {selectedType.kind}
+              </DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete <strong>{deleteTarget?.name}</strong>
+                {deleteTarget?.namespace ? (
+                  <>
+                    {" "}
+                    in namespace <strong>{deleteTarget.namespace}</strong>
+                  </>
+                ) : null}
+                ?
+              </DialogDescription>
+            </DialogHeader>
+            {deleteError && (
+              <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {deleteError}
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteTarget(null)
+                  setDeleteError("")
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deleteMutation.isPending}
+                onClick={async () => {
+                  if (!deleteTarget) return
+                  setDeleteError("")
+                  try {
+                    await deleteMutation.mutateAsync(deleteTarget)
+                    setDeleteTarget(null)
+                  } catch (e) {
+                    setDeleteError(
+                      e instanceof Error ? e.message : `Failed to delete ${selectedType.kind}`,
+                    )
+                  }
+                }}
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
