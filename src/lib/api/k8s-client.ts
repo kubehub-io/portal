@@ -102,6 +102,21 @@ async function extractErrorDetail(res: Response): Promise<string> {
   }
 }
 
+export interface K8sAPIError extends Error {
+  status?: number
+}
+
+async function k8sRequestError(action: string, res: Response): Promise<K8sAPIError> {
+  const detail = await extractErrorDetail(res)
+  const err = new Error(`${action}: ${detail}`) as K8sAPIError
+  err.status = res.status
+  return err
+}
+
+function isConflict(e: unknown): boolean {
+  return e instanceof Error && (e as K8sAPIError).status === 409
+}
+
 async function k8sFetch(
   cluster: Cluster,
   path: string,
@@ -196,7 +211,7 @@ export async function deleteK8sResource(
   const res = await k8sFetch(cluster, `${prefix}${nsPath}/${desc.resource}/${name}`, {
     method: "DELETE",
   })
-  if (!res.ok) throw new Error(`Failed to delete ${desc.resource}/${name}: ${res.statusText}`)
+  if (!res.ok) throw await k8sRequestError(`Failed to delete ${desc.resource}/${name}`, res)
 }
 
 export async function createK8sResource<T = K8sResource>(
@@ -212,10 +227,7 @@ export async function createK8sResource<T = K8sResource>(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const detail = await extractErrorDetail(res)
-    throw new Error(`Failed to create ${desc.resource}: ${detail}`)
-  }
+  if (!res.ok) throw await k8sRequestError(`Failed to create ${desc.resource}`, res)
   return res.json()
 }
 
@@ -233,11 +245,125 @@ export async function updateK8sResource<T = K8sResource>(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const detail = await extractErrorDetail(res)
-    throw new Error(`Failed to update ${desc.resource}/${name}: ${detail}`)
-  }
+  if (!res.ok) throw await k8sRequestError(`Failed to update ${desc.resource}/${name}`, res)
   return res.json()
+}
+
+/**
+ * Metadata the apiserver owns. Sending any of it in an apply request either
+ * fails validation or makes the applier take ownership of a field it can never
+ * set, so manifests are stripped of it before they go out.
+ */
+const SERVER_OWNED_METADATA = [
+  "resourceVersion",
+  "uid",
+  "managedFields",
+  "creationTimestamp",
+  "generation",
+  "selfLink",
+  "deletionTimestamp",
+  "deletionGracePeriodSeconds",
+]
+
+export function sanitizeForApply(doc: unknown): Record<string, unknown> {
+  const clone = JSON.parse(JSON.stringify(doc)) as Record<string, unknown>
+  const meta = clone.metadata
+  if (meta && typeof meta === "object" && !Array.isArray(meta)) {
+    const m = meta as Record<string, unknown>
+    for (const key of SERVER_OWNED_METADATA) delete m[key]
+  }
+  return clone
+}
+
+export interface ApplyOptions {
+  fieldManager?: string
+}
+
+const DEFAULT_FIELD_MANAGER = "kubehub-portal"
+
+/**
+ * Create-or-update a resource, the way `kubectl apply` does it.
+ *
+ * A PATCH with `application/apply-patch+yaml` lets the apiserver own
+ * resourceVersion and merge the manifest into the live object, so a manifest
+ * that has never seen the resource and one exported earlier both apply, and
+ * re-applying the same manifest is a no-op instead of a conflict.
+ */
+export async function applyK8sResource<T = K8sResource>(
+  cluster: Cluster,
+  namespace: string | null,
+  desc: ResourceDescriptor,
+  name: string,
+  body: unknown,
+  options: ApplyOptions = {},
+): Promise<T> {
+  const fieldManager = options.fieldManager ?? DEFAULT_FIELD_MANAGER
+  const sanitized = sanitizeForApply(body)
+  const prefix = desc.group ? `/apis/${desc.group}/${desc.version}` : `/api/${desc.version}`
+  const nsPath = namespace ? `/namespaces/${namespace}` : ""
+  const params = new URLSearchParams({ fieldManager, force: "true" })
+
+  const res = await k8sFetch(cluster, `${prefix}${nsPath}/${desc.resource}/${name}?${params}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/apply-patch+yaml" },
+    body: JSON.stringify(sanitized),
+  })
+
+  if (res.ok) return res.json()
+
+  // Aggregated API servers may not implement server-side apply. Fall back to a
+  // read-modify-write so applying still works against them.
+  if (res.status === 405 || res.status === 415 || res.status === 501) {
+    return applyViaReplace<T>(cluster, namespace, desc, name, sanitized)
+  }
+  throw await k8sRequestError(`Failed to apply ${desc.resource}/${name}`, res)
+}
+
+/** GET that reports absence as null instead of throwing. */
+async function findK8sResource<T = K8sResource>(
+  cluster: Cluster,
+  namespace: string | null,
+  desc: ResourceDescriptor,
+  name: string,
+): Promise<T | null> {
+  const prefix = desc.group ? `/apis/${desc.group}/${desc.version}` : `/api/${desc.version}`
+  const nsPath = namespace ? `/namespaces/${namespace}` : ""
+  const res = await k8sFetch(cluster, `${prefix}${nsPath}/${desc.resource}/${name}`)
+  if (res.status === 404) return null
+  if (!res.ok) throw await k8sRequestError(`Failed to get ${desc.resource}/${name}`, res)
+  return res.json()
+}
+
+async function applyViaReplace<T = K8sResource>(
+  cluster: Cluster,
+  namespace: string | null,
+  desc: ResourceDescriptor,
+  name: string,
+  doc: Record<string, unknown>,
+): Promise<T> {
+  const live = await findK8sResource<K8sResource>(cluster, namespace, desc, name)
+  if (!live) return createK8sResource<T>(cluster, namespace, desc, doc)
+
+  // An update must carry metadata.resourceVersion, which a manifest written by
+  // hand does not have — without it the apiserver rejects the whole request
+  // with "must be specified for an update". Take it from the live object.
+  try {
+    return await updateK8sResource<T>(cluster, namespace, desc, name, withLiveMeta(doc, live))
+  } catch (e) {
+    if (!isConflict(e)) throw e
+  }
+
+  // Another writer got there first; redo the update against what they left.
+  const latest = await findK8sResource<K8sResource>(cluster, namespace, desc, name)
+  if (!latest) return createK8sResource<T>(cluster, namespace, desc, doc)
+  return updateK8sResource<T>(cluster, namespace, desc, name, withLiveMeta(doc, latest))
+}
+
+function withLiveMeta(doc: Record<string, unknown>, live: K8sResource): Record<string, unknown> {
+  const meta = { ...((doc.metadata as Record<string, unknown>) ?? {}) }
+  meta.resourceVersion = live.metadata?.resourceVersion
+  if (live.metadata?.uid) meta.uid = live.metadata.uid
+  return { ...doc, metadata: meta }
 }
 
 export async function listEvents(

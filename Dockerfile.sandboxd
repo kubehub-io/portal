@@ -1,0 +1,47 @@
+# Sandbox runtime image for the support agent's sandboxes.
+ARG SANDBOXD_BASE=us-central1-docker.pkg.dev/k8s-staging-images/agent-sandbox/sandboxd:latest-main
+FROM ${SANDBOXD_BASE}
+
+# For build phase
+USER root
+
+# Set by BuildKit; docker only ever asks for the host architecture, so the
+# default keeps a plain `docker build` working outside CI.
+ARG TARGETARCH=amd64
+ARG KUBECTL_VERSION=v1.36.0
+ARG HELM_VERSION=v3.16.3
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        jq \
+        yq \
+        netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# helm ships a tarball per architecture. Installing rather than copying out of a
+# builder stage keeps this a single-layer image with no extra build context.
+RUN set -eux; \
+    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${TARGETARCH}.tar.gz" \
+        | tar -xz -C /tmp; \
+    install -m 0755 "/tmp/linux-${TARGETARCH}/helm" /usr/local/bin/helm; \
+    rm -rf "/tmp/linux-${TARGETARCH}"
+
+# kubectl is a static binary and is what the uploaded kubeconfig is for.
+RUN set -eux; \
+    curl -fsSL -o /usr/local/bin/kubectl \
+        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl"; \
+    chmod 0755 /usr/local/bin/kubectl
+
+# Verified at build time: a broken download or a missing architecture fails the
+# build rather than surfacing later as an unexplained tool error in a sandbox.
+RUN set -eux; \
+    kubectl version --client=true; \
+    helm version --short; \
+    curl --version >/dev/null; \
+    nc -h 2>&1 | head -1
+
+USER 1000
+
+EXPOSE 8080 9090
