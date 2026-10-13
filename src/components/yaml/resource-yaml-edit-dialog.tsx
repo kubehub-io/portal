@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import * as yaml from "js-yaml"
-import { getK8sResource, updateK8sResource, type ResourceDescriptor } from "@/lib/api/k8s-client"
+import { getK8sResource, applyK8sResource, type ResourceDescriptor } from "@/lib/api/k8s-client"
 import type { Cluster } from "@/stores/cluster-store"
 import { Button } from "@/components/ui/button"
 import {
@@ -93,14 +93,7 @@ export function ResourceYamlEditDialog({
     mutationFn: async () => {
       const parsed = yaml.load(value)
       if (!parsed || typeof parsed !== "object") throw new Error("Invalid YAML: must be a valid object")
-      const meta = (parsed as Record<string, unknown>).metadata
-      if (meta && typeof meta === "object") {
-        const m = meta as Record<string, unknown>
-        if (m.resourceVersion !== undefined && m.resourceVersion !== null) {
-          m.resourceVersion = String(m.resourceVersion)
-        }
-      }
-      return updateK8sResource(cluster!, namespace ?? null, desc, name, parsed)
+      return applyK8sResource(cluster!, namespace ?? null, desc, name, parsed)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [queryKey] })

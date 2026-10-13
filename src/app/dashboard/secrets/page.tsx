@@ -1,8 +1,12 @@
 "use client"
 
 import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
+import { type ResourceDescriptor } from "@/lib/api/k8s-client"
+
+const SECRET_DESC: ResourceDescriptor = { version: "v1", resource: "secrets" }
 
 export default function SecretsPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
@@ -43,7 +47,28 @@ export default function SecretsPage() {
           {activeCluster ? `${activeCluster.metadata.name} / secrets` : "No active cluster"}
         </p>
       </div>
-      <DataTable columns={columns} data={items} isLoading={isLoading} error={error} namespace={namespace} onNamespaceChange={setNamespace} namespaces={namespaces} />
+      <DataTable
+        columns={columns}
+        data={items}
+        isLoading={isLoading}
+        error={error}
+        namespace={namespace}
+        onNamespaceChange={setNamespace}
+        namespaces={namespaces}
+        actions={(item) => {
+          const meta = item.metadata as Record<string, string>
+          return (
+            <DeleteResourceButton
+              cluster={activeCluster}
+              desc={SECRET_DESC}
+              name={meta.name}
+              namespace={meta.namespace}
+              kind="Secret"
+              queryKey="secrets"
+            />
+          )
+        }}
+      />
     </div>
   )
 }

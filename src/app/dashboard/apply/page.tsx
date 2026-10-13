@@ -3,7 +3,8 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useClusterStore } from "@/stores/cluster-store"
-import { getK8sResource, createK8sResource, updateK8sResource, type ResourceDescriptor } from "@/lib/api/k8s-client"
+import { useQueryClient } from "@tanstack/react-query"
+import { applyK8sResource, getK8sResource, type ResourceDescriptor } from "@/lib/api/k8s-client"
 import { useState, useRef, useCallback } from "react"
 import { Upload, Link, Loader2, CheckCircle, XCircle, FileText } from "lucide-react"
 import * as yaml from "js-yaml"
@@ -48,6 +49,7 @@ export default function ApplyPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
   const clusterDns = activeCluster?.status.publicDns
   const discoveryQuery = useAPIDiscovery()
+  const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [yamlInput, setYamlInput] = useState("")
   const [urlInput, setUrlInput] = useState("")
@@ -89,6 +91,8 @@ export default function ApplyPage() {
           const ns = info.namespace || null
           const name = info.name
 
+          // Probed only to report whether the resource was created or updated;
+          // server-side apply decides that itself.
           let exists = false
           try {
             await getK8sResource(activeCluster!, ns, desc, name)
@@ -97,13 +101,9 @@ export default function ApplyPage() {
             exists = false
           }
 
-          if (exists) {
-            await updateK8sResource(activeCluster!, ns, desc, name, doc)
-            res.push({ name: info.name, kind: info.kind, namespace: info.namespace, action: "updated" })
-          } else {
-            await createK8sResource(activeCluster!, ns, desc, doc)
-            res.push({ name: info.name, kind: info.kind, namespace: info.namespace, action: "created" })
-          }
+          await applyK8sResource(activeCluster!, ns, desc, name, doc)
+          queryClient.invalidateQueries({ queryKey: [desc.resource] })
+          res.push({ name: info.name, kind: info.kind, namespace: info.namespace, action: exists ? "updated" : "created" })
         } catch (e) {
           res.push({
             name: "",

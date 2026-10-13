@@ -5,6 +5,7 @@ import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { useState } from "react"
 import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
+import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
 import { type ResourceDescriptor } from "@/lib/api/k8s-client"
 
 const SERVICE_DESC: ResourceDescriptor = { version: "v1", resource: "services" }
@@ -52,16 +53,24 @@ export default function ServicesPage() {
         namespace={namespace}
         onNamespaceChange={setNamespace}
         namespaces={namespaces}
-        actions={(item) => (
-          <EditResourceButton
-            onClick={() =>
-              setEditTarget({
-                name: (item.metadata as Record<string, string>).name,
-                namespace: (item.metadata as Record<string, string>).namespace,
-              })
-            }
-          />
-        )}
+        actions={(item) => {
+          const meta = item.metadata as Record<string, string>
+          return (
+            <div className="flex items-center gap-1">
+              <EditResourceButton
+                onClick={() => setEditTarget({ name: meta.name, namespace: meta.namespace })}
+              />
+              <DeleteResourceButton
+                cluster={activeCluster}
+                desc={SERVICE_DESC}
+                name={meta.name}
+                namespace={meta.namespace}
+                kind="Service"
+                queryKey="services"
+              />
+            </div>
+          )
+        }}
       />
 
       <ResourceYamlEditDialog
