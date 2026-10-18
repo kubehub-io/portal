@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { applyK8sResource, deleteK8sResource, sanitizeForApply } from "@/lib/api/k8s-client"
+import { applyK8sResource, deleteK8sResource, discoverAPI, sanitizeForApply } from "@/lib/api/k8s-client"
 import { useAuthStore } from "@/stores/auth-store"
 import type { Cluster } from "@/stores/cluster-store"
 
@@ -196,5 +196,88 @@ describe("deleteK8sResource", () => {
     await expect(deleteK8sResource(cluster, "default", DEPLOY_DESC, "web")).rejects.toThrow(
       /cannot delete/,
     )
+  })
+})
+
+describe("discoverAPI", () => {
+  const CILIUM_GROUP = {
+    name: "cilium.io",
+    versions: [
+      { groupVersion: "cilium.io/v2", version: "v2" },
+      { groupVersion: "cilium.io/v2alpha1", version: "v2alpha1" },
+    ],
+    preferredVersion: { groupVersion: "cilium.io/v2", version: "v2" },
+  }
+
+  const ROUTES: Record<string, unknown> = {
+    "/api": { versions: ["v1"] },
+    "/apis": { groups: [CILIUM_GROUP] },
+    "/apis/cilium.io/v2": {
+      resources: [{ name: "ciliumnetworkpolicies", kind: "CiliumNetworkPolicy", namespaced: true, singularName: "ciliumnetworkpolicy" }],
+    },
+    "/apis/cilium.io/v2alpha1": {
+      resources: [
+        { name: "ciliumnetworkpolicies", kind: "CiliumNetworkPolicy", namespaced: true, singularName: "ciliumnetworkpolicy" },
+        { name: "ciliuml2announcementpolicies", kind: "CiliumL2AnnouncementPolicy", namespaced: false, singularName: "ciliuml2announcementpolicy" },
+      ],
+    },
+  }
+
+  /** Route by path: discovery fans out in parallel, so a queue would be racy. */
+  function routeFetch(routes: Record<string, unknown>) {
+    const seen: string[] = []
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const path = new URL(url).pathname
+        seen.push(path)
+        const body = routes[path]
+        if (!body) return new Response("not found", { status: 404 })
+        return reply(200, body)
+      }),
+    )
+    return seen
+  }
+
+  function cilium(discovery: Awaited<ReturnType<typeof discoverAPI>>) {
+    return discovery.groups.find((g) => g.name === "cilium.io")?.resources ?? []
+  }
+
+  it("discovers a resource that only its non-preferred version serves", async () => {
+    routeFetch(ROUTES)
+
+    const resources = cilium(await discoverAPI(cluster))
+
+    // CiliumL2AnnouncementPolicy exists solely in cilium.io/v2alpha1; reading the
+    // group's preferred version alone would leave it off the resource list.
+    expect(resources.map((r) => r.kind)).toContain("CiliumL2AnnouncementPolicy")
+  })
+
+  it("reports the version each resource was found at", async () => {
+    routeFetch(ROUTES)
+
+    const resources = cilium(await discoverAPI(cluster))
+
+    expect(resources.find((r) => r.kind === "CiliumL2AnnouncementPolicy")?.version).toBe("v2alpha1")
+    expect(resources.find((r) => r.kind === "CiliumNetworkPolicy")?.version).toBe("v2")
+  })
+
+  it("lists a resource served by several versions once, at the preferred version", async () => {
+    const seen = routeFetch(ROUTES)
+
+    const resources = cilium(await discoverAPI(cluster))
+
+    expect(resources.filter((r) => r.name === "ciliumnetworkpolicies")).toHaveLength(1)
+    expect(resources.find((r) => r.name === "ciliumnetworkpolicies")?.version).toBe("v2")
+    // The preferred version is only fetched once, not again as a listed version.
+    expect(seen.filter((p) => p === "/apis/cilium.io/v2")).toHaveLength(1)
+  })
+
+  it("keeps the group when none of its versions answer", async () => {
+    routeFetch({ "/api": { versions: ["v1"] }, "/apis": { groups: [CILIUM_GROUP] } })
+
+    const group = (await discoverAPI(cluster)).groups[0]
+
+    expect(group.resources).toBeUndefined()
   })
 })

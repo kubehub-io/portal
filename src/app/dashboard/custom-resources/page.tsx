@@ -234,7 +234,7 @@ export default function CustomResourcesPage() {
           kind: resource.kind,
           plural: resource.name,
           namespaced: resource.namespaced,
-          version: group.preferredVersion.version,
+          version: resource.version ?? group.preferredVersion.version,
           label: `${group.name}/${resource.kind}`,
         })
       }
