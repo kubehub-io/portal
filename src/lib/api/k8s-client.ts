@@ -5,16 +5,66 @@ export function getK8sApiBase(cluster: Cluster): string {
   return `https://${cluster.status.publicDns}:8443`
 }
 
+export interface APIDiscoveryResource {
+  name: string
+  singularName: string
+  kind: string
+  namespaced: boolean
+  version: string
+}
+
 export interface APIGroup {
   name: string
   versions: { groupVersion: string; version: string }[]
   preferredVersion: { groupVersion: string; version: string }
-  resources?: { name: string; singularName: string; kind: string; namespaced: boolean }[]
+  resources?: APIDiscoveryResource[]
 }
 
 export interface APIDiscoveryResult {
   coreVersions: string[]
   groups: APIGroup[]
+}
+
+/**
+ * Discovery has to walk every version a group serves, not just the preferred one.
+ * A CRD that only exists in an alpha version (cilium.io/v2alpha1
+ * CiliumL2AnnouncementPolicy, for instance) is absent from the preferred version's
+ * resource list, so preferring it alone hides the resource entirely.
+ */
+async function discoverGroupResources(
+  host: string,
+  headers: Record<string, string>,
+  group: APIGroup,
+): Promise<APIDiscoveryResource[]> {
+  const ordered = [
+    group.preferredVersion?.version,
+    ...(group.versions ?? []).map((v) => v.version),
+  ].filter((version, i, all): version is string => !!version && all.indexOf(version) === i)
+
+  const perVersion = await Promise.all(
+    ordered.map(async (version) => {
+      try {
+        const res = await fetch(`${host}/apis/${group.name}/${version}`, { headers })
+        if (!res.ok) return []
+        const data = await res.json() as {
+          resources?: Omit<APIDiscoveryResource, "version">[]
+        }
+        return (data.resources ?? []).map((resource) => ({ ...resource, version }))
+      } catch {
+        return []
+      }
+    }),
+  )
+
+  // Promise.all keeps the preferred version first, so it wins any collision.
+  const merged = new Map<string, APIDiscoveryResource>()
+  for (const resources of perVersion) {
+    for (const resource of resources) {
+      if (!merged.has(resource.name)) merged.set(resource.name, resource)
+    }
+  }
+
+  return Array.from(merged.values())
 }
 
 export async function discoverAPI(cluster: Cluster): Promise<APIDiscoveryResult> {
@@ -36,16 +86,8 @@ export async function discoverAPI(cluster: Cluster): Promise<APIDiscoveryResult>
 
   const groupsWithResources = await Promise.all(
     apisData.groups.map(async (group) => {
-      try {
-        const version = group.preferredVersion?.version ?? group.versions?.[0]?.version
-        if (!version) return group
-        const res = await fetch(`${host}/apis/${group.name}/${version}`, { headers })
-        if (!res.ok) return group
-        const data = await res.json() as { resources?: APIGroup["resources"] }
-        return { ...group, resources: data.resources }
-      } catch {
-        return group
-      }
+      const resources = await discoverGroupResources(host, headers, group)
+      return resources.length > 0 ? { ...group, resources } : group
     }),
   )
 
