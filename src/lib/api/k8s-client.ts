@@ -34,6 +34,8 @@ export async function discoverAPI(cluster: Cluster): Promise<APIDiscoveryResult>
   const coreData = await coreRes.json() as { versions: string[] }
   const apisData = await apisRes.json() as { groups: APIGroup[] }
 
+  const coreGroup = await discoverCoreGroup(cluster, headers)
+
   const groupsWithResources = await Promise.all(
     apisData.groups.map(async (group) => {
       try {
@@ -51,7 +53,32 @@ export async function discoverAPI(cluster: Cluster): Promise<APIDiscoveryResult>
 
   return {
     coreVersions: coreData.versions,
-    groups: groupsWithResources,
+    groups: coreGroup ? [coreGroup, ...groupsWithResources] : groupsWithResources,
+  }
+}
+
+/**
+ * The core API group is served from /api rather than /apis, so it has to be
+ * discovered separately. It is returned as a group with an empty name.
+ */
+async function discoverCoreGroup(
+  cluster: Cluster,
+  headers: Record<string, string>,
+): Promise<APIGroup | null> {
+  const version = "v1"
+  try {
+    const res = await fetch(`${getK8sApiBase(cluster)}/api/${version}`, { headers })
+    if (!res.ok) return null
+    const data = await res.json() as { resources?: APIGroup["resources"] }
+    const groupVersion = version
+    return {
+      name: "",
+      versions: [{ groupVersion, version }],
+      preferredVersion: { groupVersion, version },
+      resources: data.resources,
+    }
+  } catch {
+    return null
   }
 }
 

@@ -39,6 +39,7 @@ interface DataTableProps {
   currentPage?: number
   totalPages?: number
   onPageChange?: (page: number) => void
+  emptyMessage?: string
 }
 
 function getNestedValue(obj: unknown, path: string): unknown {
@@ -94,6 +95,7 @@ export function DataTable({
   currentPage,
   totalPages,
   onPageChange,
+  emptyMessage,
 }: DataTableProps) {
   if (isLoading) {
     return (
@@ -147,7 +149,7 @@ export function DataTable({
             {data.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                  No resources found
+                  {emptyMessage ?? "No resources found"}
                 </TableCell>
               </TableRow>
             ) : (

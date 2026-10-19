@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,211 +13,258 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useClusters } from "@/hooks/use-clusters"
+import { useNavAvailability } from "@/hooks/use-nav-availability"
 import {
   LayoutDashboard,
-  Server,
-  Layers,
-  Activity,
-  Network,
-  Share2,
-  HardDrive,
-  Database,
-  FileJson,
-  Key,
   Boxes,
-  Container,
   Loader2,
-  Globe,
   PanelLeftClose,
   PanelLeft,
+  Settings2,
+  Star,
+  EyeOff,
   X,
-  Terminal,
-  FilePlus,
+  type LucideIcon,
 } from "lucide-react"
-import { useState } from "react"
+import { NAV_GROUPS, getNavItem, isNavItemActive } from "@/lib/navigation"
+import {
+  navItemToFavorite,
+  useResourceNavStore,
+  type FavoriteResource,
+} from "@/stores/resource-nav-store"
+import { NavCustomizeDialog } from "@/components/layout/nav-customize-dialog"
 
-interface NavItem {
+interface DisplayItem {
+  id: string
   label: string
   href: string
-  icon: React.ReactNode
+  icon: LucideIcon
+  /** Shown greyed out because the cluster cannot serve the tab right now. */
+  unreachable: boolean
+  reason?: string
 }
 
-interface NavGroup {
-  label: string
-  items: NavItem[]
+function hrefPath(href: string): string {
+  const idx = href.indexOf("?")
+  return idx === -1 ? href : href.slice(0, idx)
 }
 
 export function Sidebar() {
+  return (
+    <Suspense fallback={<SidebarFrame />}>
+      <SidebarContent />
+    </Suspense>
+  )
+}
+
+function SidebarFrame() {
+  return (
+    <aside className="hidden h-full w-64 shrink-0 flex-col border-r bg-sidebar md:flex">
+      <div className="flex h-14 items-center gap-2 border-b px-4">
+        <LayoutDashboard className="h-5 w-5 shrink-0 text-primary" />
+        <span className="font-semibold">KubeHub</span>
+      </div>
+    </aside>
+  )
+}
+
+function SidebarContent() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { clusters, activeCluster, setActiveCluster, isLoading } = useClusters()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [customizeOpen, setCustomizeOpen] = useState(false)
 
+  const favorites = useResourceNavStore((s) => s.favorites)
+  const hidden = useResourceNavStore((s) => s.hidden)
+  const hydrate = useResourceNavStore((s) => s.hydrate)
+  const toggleFavorite = useResourceNavStore((s) => s.toggleFavorite)
+  const toggleHidden = useResourceNavStore((s) => s.toggleHidden)
+  const removeFavorite = useResourceNavStore((s) => s.removeFavorite)
+
+  useEffect(() => {
+    hydrate()
+  }, [hydrate])
+
+  const availability = useNavAvailability()
   const clusterDns = activeCluster?.status.publicDns
-  const managedIngress = activeCluster?.spec?.managedIngressProfile?.enabled !== false
   const isClusterStopped = activeCluster?.status?.state?.toLowerCase() === "stopped"
 
-  const groups: NavGroup[] = [
-    {
-      label: "Resources",
-      items: [
-        { label: "Clusters", href: "/dashboard/clusters", icon: <Server className="h-4 w-4" /> },
-        { label: "Nodes", href: "/dashboard/nodes", icon: <Server className="h-4 w-4" /> },
-        { label: "AppIngress", href: "/dashboard/appingresses", icon: <Globe className="h-4 w-4" /> },
-        { label: "Shell", href: "/dashboard/shell", icon: <Terminal className="h-4 w-4" /> },
-        { label: "Apply", href: "/dashboard/apply", icon: <FilePlus className="h-4 w-4" /> },
-        { label: "Custom Resources", href: "/dashboard/custom-resources", icon: <Boxes className="h-4 w-4" /> },
-      ],
-    },
-    {
-      label: "Basic",
-      items: [
-        { label: "Namespaces", href: "/dashboard/namespaces", icon: <Layers className="h-4 w-4" /> },
-        { label: "Events", href: "/dashboard/events", icon: <Activity className="h-4 w-4" /> },
-      ],
-    },
-    {
-      label: "Workloads",
-      items: [
-        { label: "Pods", href: "/dashboard/workloads/pods", icon: <Container className="h-4 w-4" /> },
-        { label: "Deployments", href: "/dashboard/workloads/deployments", icon: <Container className="h-4 w-4" /> },
-        { label: "DaemonSets", href: "/dashboard/workloads/daemonsets", icon: <Boxes className="h-4 w-4" /> },
-        { label: "StatefulSets", href: "/dashboard/workloads/statefulsets", icon: <Boxes className="h-4 w-4" /> },
-        { label: "ReplicaSets", href: "/dashboard/workloads/replicasets", icon: <Boxes className="h-4 w-4" /> },
-        { label: "Jobs", href: "/dashboard/workloads/jobs", icon: <Boxes className="h-4 w-4" /> },
-        { label: "CronJobs", href: "/dashboard/workloads/cronjobs", icon: <Boxes className="h-4 w-4" /> },
-      ],
-    },
-    {
-      label: "Network",
-      items: [
-        { label: "Services", href: "/dashboard/services", icon: <Network className="h-4 w-4" /> },
-        { label: "EndpointSlices", href: "/dashboard/endpointslices", icon: <Share2 className="h-4 w-4" /> },
-      ],
-    },
-    {
-      label: "Storage",
-      items: [
-        { label: "PersistentVolumes", href: "/dashboard/pv", icon: <HardDrive className="h-4 w-4" /> },
-        { label: "PersistentVolumeClaims", href: "/dashboard/pvc", icon: <Database className="h-4 w-4" /> },
-      ],
-    },
-    {
-      label: "Config",
-      items: [
-        { label: "ConfigMaps", href: "/dashboard/configmaps", icon: <FileJson className="h-4 w-4" /> },
-        { label: "Secrets", href: "/dashboard/secrets", icon: <Key className="h-4 w-4" /> },
-      ],
-    },
-  ]
+  const isActive = (item: { href: string; id: string }) => {
+    const navItem = getNavItem(item.id)
+    if (navItem) return isNavItemActive(pathname, navItem)
+    if (pathname !== hrefPath(item.href)) return false
+    // Pinned resource types share the generic viewer route — match on the type param.
+    const expected = new URLSearchParams(item.href.split("?")[1] ?? "").get("type")
+    return expected ? searchParams.get("type") === expected : true
+  }
 
-  const sidebarContent = (
-    <>
-      <div className="flex h-14 items-center gap-2 border-b px-4">
-        <LayoutDashboard className="h-5 w-5 shrink-0 text-primary" />
-        {!collapsed && <span className="font-semibold">KubeHub</span>}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto h-6 w-6 shrink-0"
-          onClick={() => setCollapsed(!collapsed)}
-        >
-          <PanelLeftClose className="h-4 w-4" />
-        </Button>
-      </div>
+  const favoriteItems: DisplayItem[] = favorites.map((fav: FavoriteResource) => {
+    const navItem = getNavItem(fav.id)
+    return {
+      id: fav.id,
+      label: fav.label,
+      href: fav.href,
+      icon: navItem?.icon ?? Boxes,
+      unreachable: false,
+    }
+  })
 
-      {!collapsed && (
-        <div className="border-b p-3">
-          {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Loading clusters...
-            </div>
-          ) : clusters.length === 0 ? (
-            <div className="text-xs text-muted-foreground">No clusters found</div>
-          ) : (
-            <div className="space-y-1">
-              <div className="text-xs font-medium text-muted-foreground">Active Cluster</div>
-              <Select
-                value={activeCluster?.metadata.name ?? ""}
-                onValueChange={(name) => {
-                  const c = clusters.find((cl) => cl.metadata.name === name)
-                  if (c) setActiveCluster(c)
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Select cluster" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clusters.map((c) => {
-                    const stopped = c.status?.state?.toLowerCase() === "stopped"
-                    return (
-                      <SelectItem key={c.metadata.name} value={c.metadata.name}>
-                        {c.metadata.name}
-                        {stopped && <span className="ml-2 text-muted-foreground">(Stopped)</span>}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-              {activeCluster?.status?.state?.toLowerCase() === "stopped" ? (
-                <div className="flex items-center gap-1.5 pt-1">
-                  <span className="relative flex h-2 w-2 rounded-full bg-destructive" />
-                  <span className="text-[10px] text-muted-foreground">Stopped</span>
-                </div>
-              ) : clusterDns ? (
-                <div className="flex items-center gap-1.5 pt-1">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-                  </span>
-                  <span className="text-[10px] text-muted-foreground truncate">{clusterDns}</span>
-                </div>
-              ) : null}
+  const pinnedIds = new Set(favorites.map((f) => f.id))
+
+  const groups = NAV_GROUPS.map((group) => {
+    const items: DisplayItem[] = []
+    for (const item of group.items) {
+      if (pinnedIds.has(item.id)) continue
+      const status = availability.get(item.id)
+      const isHidden = hidden.includes(item.id)
+      // A tab gated off by a cluster feature stays out of the sidebar unless pinned.
+      if (isHidden || status?.available === false) continue
+      items.push({
+        id: item.id,
+        label: item.label,
+        href: item.href,
+        icon: item.icon,
+        unreachable: status?.unreachable ?? false,
+        reason: status?.reason,
+      })
+    }
+    return { ...group, items }
+  }).filter((group) => group.items.length > 0)
+
+  const hiddenCount = hidden.length
+
+  const renderNav = (onNavigate?: () => void) => (
+    <nav className="flex-1 overflow-y-auto p-2">
+      {favoriteItems.length > 0 && (
+        <div className="mb-2">
+          {!collapsed && (
+            <div className="flex items-center px-2 py-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Favorites
+              </span>
             </div>
           )}
+          {favoriteItems.map((item) => (
+            <NavRow
+              key={item.id}
+              item={item}
+              collapsed={collapsed}
+              active={isActive(item)}
+              onNavigate={onNavigate}
+              onUnpin={() => removeFavorite(item.id)}
+            />
+          ))}
         </div>
       )}
 
-      <nav className="flex-1 overflow-y-auto p-2">
-        {groups.map((group) => (
-          <div key={group.label} className="mb-2">
-            {!collapsed && (
-              <div className="px-2 py-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {group.label}
-                </span>
-              </div>
-            )}
-            {group.items.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-              const allowedWhenStopped = ["/dashboard/clusters", "/dashboard/nodes", "/dashboard/appingresses"]
-              const isDisabled = (item.href === "/appingresses" && !managedIngress) || (isClusterStopped && !allowedWhenStopped.includes(item.href))
-              return (
-                <Button
-                  key={item.href}
-                  variant={isActive ? "secondary" : "ghost"}
-                  size="sm"
-                  asChild
-                  className={cn(
-                    "w-full justify-start gap-2 px-2 text-sm font-normal",
-                    collapsed && "justify-center px-0",
-                    isActive && "bg-accent font-medium",
-                    isDisabled && "opacity-50 pointer-events-none",
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Link href={item.href}>
-                    {item.icon}
-                    {!collapsed && item.label}
-                  </Link>
-                </Button>
-              )
-            })}
-          </div>
-        ))}
-      </nav>
+      {groups.map((group) => (
+        <div key={group.id} className="mb-2">
+          {!collapsed && (
+            <div className="px-2 py-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {group.label}
+              </span>
+            </div>
+          )}
+          {group.items.map((item) => (
+            <NavRow
+              key={item.id}
+              item={item}
+              collapsed={collapsed}
+              active={isActive(item)}
+              onNavigate={onNavigate}
+              onFavorite={() => {
+                const target = navItemToFavorite(item.id)
+                if (target) toggleFavorite(target)
+              }}
+              onHide={() => toggleHidden(item.id)}
+            />
+          ))}
+        </div>
+      ))}
+    </nav>
+  )
+
+  const clusterSelector = (
+    <>
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Loading clusters...
+        </div>
+      ) : clusters.length === 0 ? (
+        <div className="text-xs text-muted-foreground">No clusters found</div>
+      ) : (
+        <div className="space-y-1">
+          <div className="text-xs font-medium text-muted-foreground">Active Cluster</div>
+          <Select
+            value={activeCluster?.metadata.name ?? ""}
+            onValueChange={(name) => {
+              const c = clusters.find((cl) => cl.metadata.name === name)
+              if (c) setActiveCluster(c)
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select cluster" />
+            </SelectTrigger>
+            <SelectContent>
+              {clusters.map((c) => {
+                const stopped = c.status?.state?.toLowerCase() === "stopped"
+                return (
+                  <SelectItem key={c.metadata.name} value={c.metadata.name}>
+                    {c.metadata.name}
+                    {stopped && <span className="ml-2 text-muted-foreground">(Stopped)</span>}
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
+          {isClusterStopped ? (
+            <div className="flex items-center gap-1.5 pt-1">
+              <span className="relative flex h-2 w-2 rounded-full bg-destructive" />
+              <span className="text-[10px] text-muted-foreground">Stopped</span>
+            </div>
+          ) : clusterDns ? (
+            <div className="flex items-center gap-1.5 pt-1">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+              </span>
+              <span className="truncate text-[10px] text-muted-foreground">{clusterDns}</span>
+            </div>
+          ) : null}
+        </div>
+      )}
     </>
+  )
+
+  const customizeButton = (
+    <div className="border-t p-2">
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn("w-full justify-start gap-2 px-2 text-sm font-normal", collapsed && "justify-center px-0")}
+        onClick={() => {
+          setCustomizeOpen(true)
+          setMobileOpen(false)
+        }}
+        title={collapsed ? "Customize tabs" : undefined}
+      >
+        <Settings2 className="h-4 w-4" />
+        {!collapsed && (
+          <>
+            <span className="flex-1 text-left">Customize tabs</span>
+            {hiddenCount > 0 && (
+              <span className="rounded bg-muted px-1.5 text-[10px] text-muted-foreground">
+                {hiddenCount} hidden
+              </span>
+            )}
+          </>
+        )}
+      </Button>
+    </div>
   )
 
   return (
@@ -232,11 +280,27 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "hidden md:flex h-full flex-col border-r bg-sidebar transition-all duration-200",
+          "hidden h-full shrink-0 flex-col border-r bg-sidebar transition-all duration-200 md:flex",
           collapsed ? "w-16" : "w-64",
         )}
       >
-        {sidebarContent}
+        <div className="flex h-14 items-center gap-2 border-b px-4">
+          <LayoutDashboard className="h-5 w-5 shrink-0 text-primary" />
+          {!collapsed && <span className="font-semibold">KubeHub</span>}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto h-6 w-6 shrink-0"
+            onClick={() => setCollapsed(!collapsed)}
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {!collapsed && <div className="border-b p-3">{clusterSelector}</div>}
+
+        {renderNav()}
+        {customizeButton}
       </aside>
 
       {mobileOpen && (
@@ -252,44 +316,114 @@ export function Sidebar() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex-1 overflow-y-auto p-2">
-              {groups.map((group) => (
-                <div key={group.label} className="mb-2">
-                  <div className="px-2 py-1.5">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {group.label}
-                    </span>
-                  </div>
-                  {group.items.map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-                    const allowedWhenStopped = ["/dashboard/clusters", "/dashboard/nodes", "/dashboard/appingresses"]
-                    const isDisabled = (item.href === "/appingresses" && !managedIngress) || (isClusterStopped && !allowedWhenStopped.includes(item.href))
-                    return (
-                      <Button
-                        key={item.href}
-                        variant={isActive ? "secondary" : "ghost"}
-                        size="sm"
-                        asChild
-                        className={cn(
-                          "w-full justify-start gap-2 px-2 text-sm font-normal",
-                          isActive && "bg-accent font-medium",
-                          isDisabled && "opacity-50 pointer-events-none",
-                        )}
-                        onClick={() => setMobileOpen(false)}
-                      >
-                        <Link href={item.href}>
-                          {item.icon}
-                          {item.label}
-                        </Link>
-                      </Button>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
+            <div className="border-b p-3">{clusterSelector}</div>
+            {renderNav(() => setMobileOpen(false))}
+            {customizeButton}
           </aside>
         </div>
       )}
+
+      <NavCustomizeDialog open={customizeOpen} onOpenChange={setCustomizeOpen} />
     </>
+  )
+}
+
+interface NavRowProps {
+  item: DisplayItem
+  collapsed: boolean
+  active: boolean
+  onNavigate?: () => void
+  onFavorite?: () => void
+  onHide?: () => void
+  onUnpin?: () => void
+}
+
+function NavRow({
+  item,
+  collapsed,
+  active,
+  onNavigate,
+  onFavorite,
+  onHide,
+  onUnpin,
+}: NavRowProps) {
+  const Icon = item.icon
+  return (
+    <div className="group/nav relative">
+      <Button
+        variant={active ? "secondary" : "ghost"}
+        size="sm"
+        asChild
+        className={cn(
+          "w-full justify-start gap-2 px-2 text-sm font-normal",
+          collapsed && "justify-center px-0",
+          active && "bg-accent font-medium",
+          item.unreachable && "opacity-50 pointer-events-none",
+        )}
+        title={collapsed ? item.label : item.reason}
+        onClick={onNavigate}
+      >
+        <Link href={item.href}>
+          <Icon className="h-4 w-4 shrink-0" />
+          {!collapsed && <span className="truncate">{item.label}</span>}
+        </Link>
+      </Button>
+
+      {!collapsed && (
+        <div
+          className={cn(
+            "absolute right-1 top-1/2 flex -translate-y-1/2 gap-0.5 rounded px-0.5 opacity-0 transition-opacity",
+            "group-focus-within/nav:opacity-100 group-hover/nav:opacity-100",
+            active ? "bg-accent" : "bg-sidebar",
+          )}
+        >
+          {onUnpin ? (
+            <RowAction label={`Unpin ${item.label}`} onClick={onUnpin}>
+              <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+            </RowAction>
+          ) : (
+            <>
+              {onFavorite && (
+                <RowAction label={`Pin ${item.label}`} onClick={onFavorite}>
+                  <Star className="h-3.5 w-3.5" />
+                </RowAction>
+              )}
+              {onHide && (
+                <RowAction label={`Hide ${item.label}`} onClick={onHide}>
+                  <EyeOff className="h-3.5 w-3.5" />
+                </RowAction>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RowAction({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-6 w-6"
+      aria-label={label}
+      title={label}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onClick()
+      }}
+    >
+      {children}
+    </Button>
   )
 }
