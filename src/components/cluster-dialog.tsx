@@ -103,7 +103,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "Create Cluster" : `Cluster Settings — ${cluster?.metadata.name}`}</DialogTitle>
         </DialogHeader>
@@ -114,10 +114,10 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             <TabsTrigger value="ingress">AppIngress</TabsTrigger>
             <TabsTrigger value="storage">Storage</TabsTrigger>
             {mode === "edit" && <TabsTrigger value="monitoring">Monitoring</TabsTrigger>}
-            <TabsTrigger value="controllers">Controllers</TabsTrigger>
+            <TabsTrigger value="controllers">Operators</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="general" className="space-y-4 pt-4" forceMount>
+          <TabsContent value="general" className="space-y-4 pt-4">
             {mode === "create" && (
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
@@ -146,7 +146,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             )}
           </TabsContent>
 
-          <TabsContent value="network" className="space-y-4 pt-4" forceMount>
+          <TabsContent value="network" className="space-y-4 pt-4">
             {mode === "edit" && (
               <p className="text-xs text-muted-foreground">Network settings cannot be modified after cluster creation.</p>
             )}
@@ -204,7 +204,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             )}
           </TabsContent>
 
-          <TabsContent value="ingress" className="space-y-4 pt-4" forceMount>
+          <TabsContent value="ingress" className="space-y-4 pt-4">
             <div className="flex items-center gap-2">
               <Checkbox
                 id="ingressEnabled"
@@ -233,7 +233,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             </div>
           </TabsContent>
 
-          <TabsContent value="storage" className="space-y-4 pt-4" forceMount>
+          <TabsContent value="storage" className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="storageProfile">Storage provider</Label>
               <Select value={storageProfile} onValueChange={setStorageProfile}>
@@ -266,7 +266,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
           </TabsContent>
 
           {mode === "edit" && (
-            <TabsContent value="monitoring" className="space-y-4 pt-4" forceMount>
+            <TabsContent value="monitoring" className="space-y-4 pt-4">
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="monitoringEnabled"
@@ -278,7 +278,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             </TabsContent>
           )}
 
-          <TabsContent value="controllers" className="space-y-4 pt-4" forceMount>
+          <TabsContent value="controllers" className="space-y-4 pt-4">
             <div className="flex items-center gap-2">
               <Checkbox
                 id="cnpgEnabled"
@@ -288,7 +288,8 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
               <Label htmlFor="cnpgEnabled" className="cursor-pointer text-sm">
                 <a href="https://cloudnative-pg.io/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
                   CloudNative PG
-                </a>
+                </a>{" "}
+                — manages PostgreSQL servers, databases, and roles.
               </Label>
             </div>
             <p className="text-xs text-muted-foreground">
