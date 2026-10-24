@@ -43,6 +43,11 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
   const [ingressEmail, setIngressEmail] = useState(mode === "edit" && cluster ? cluster.spec.managedIngressProfile?.email ?? "" : "")
   const [storageProfile, setStorageProfile] = useState(mode === "edit" && cluster ? cluster.spec.storageProfile?.backend ?? "none" : "none")
   const [monitoringEnabled, setMonitoringEnabled] = useState(mode === "edit" && cluster ? cluster.spec.monitoringProfile?.enabled === true : false)
+  const [podCIDR, setPodCIDR] = useState(mode === "edit" && cluster ? cluster.spec.network?.podCIDR ?? "" : "")
+  const [serviceCIDR, setServiceCIDR] = useState(mode === "edit" && cluster ? cluster.spec.network?.serviceCIDR ?? "" : "")
+  const [kubeDNSServiceIP, setKubeDNSServiceIP] = useState(mode === "edit" && cluster ? cluster.spec.network?.kubeDNSServiceIP ?? "" : "")
+  const [cni, setCni] = useState(mode === "edit" && cluster ? cluster.spec.network?.cni ?? "cilium" : "cilium")
+  const [cnpgEnabled, setCnpgEnabled] = useState(mode === "edit" && cluster ? cluster.spec.managedControllerProfile?.enabledControllers?.includes("cnpg") === true : false)
   const [error, setError] = useState("")
 
   const { data: metadata } = useQuery({
@@ -60,8 +65,15 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
           metadata: { name },
           spec: {
             region,
+            network: {
+              podCIDR: podCIDR || undefined,
+              serviceCIDR: serviceCIDR || undefined,
+              kubeDNSServiceIP: kubeDNSServiceIP || undefined,
+              cni,
+            },
             managedIngressProfile: { enabled: ingressEnabled, email: ingressEmail },
             storageProfile: { backend: storageProfile === "none" ? "" : storageProfile },
+            managedControllerProfile: { enabledControllers: cnpgEnabled ? ["clustersettings", "cnpg"] : ["clustersettings"] },
           },
         })
         onOpenChange(false)
@@ -74,6 +86,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             managedIngressProfile: { enabled: ingressEnabled, email: ingressEmail },
             storageProfile: { backend: storageProfile === "none" ? "" : storageProfile },
             monitoringProfile: { enabled: monitoringEnabled },
+            managedControllerProfile: { enabledControllers: cnpgEnabled ? ["clustersettings", "cnpg"] : ["clustersettings"] },
           },
         }, etag)
         queryClient.invalidateQueries({ queryKey: ["clusters"] })
@@ -95,15 +108,16 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
           <DialogTitle>{mode === "create" ? "Create Cluster" : `Cluster Settings — ${cluster?.metadata.name}`}</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="general" className="mt-2">
-          <TabsList className={`grid w-full ${mode === "edit" ? "grid-cols-5" : "grid-cols-3"}`}>
+          <TabsList className={`grid w-full ${mode === "edit" ? "grid-cols-6" : "grid-cols-5"}`}>
             <TabsTrigger value="general">General</TabsTrigger>
-            {mode === "edit" && <TabsTrigger value="network">Network</TabsTrigger>}
+            <TabsTrigger value="network">Network</TabsTrigger>
             <TabsTrigger value="ingress">AppIngress</TabsTrigger>
             <TabsTrigger value="storage">Storage</TabsTrigger>
             {mode === "edit" && <TabsTrigger value="monitoring">Monitoring</TabsTrigger>}
+            <TabsTrigger value="controllers">Controllers</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="general" className="space-y-4 pt-4">
+          <TabsContent value="general" className="space-y-4 pt-4" forceMount>
             {mode === "create" && (
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
@@ -132,25 +146,65 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             )}
           </TabsContent>
 
-          {mode === "edit" && (
-            <TabsContent value="network" className="space-y-4 pt-4">
+          <TabsContent value="network" className="space-y-4 pt-4" forceMount>
+            {mode === "edit" && (
               <p className="text-xs text-muted-foreground">Network settings cannot be modified after cluster creation.</p>
-              <div className="space-y-2">
-                <Label>Node Physical CIDR</Label>
-                <div className="rounded-md bg-muted px-3 py-2 text-sm">{cluster?.spec.network?.nodePhysicalCIDR ?? "-"}</div>
-              </div>
-              <div className="space-y-2">
-                <Label>Pod CIDR</Label>
-                <div className="rounded-md bg-muted px-3 py-2 text-sm">{cluster?.spec.network?.podCIDR ?? "-"}</div>
-              </div>
-              <div className="space-y-2">
-                <Label>Service CIDR</Label>
-                <div className="rounded-md bg-muted px-3 py-2 text-sm">{cluster?.spec.network?.serviceCIDR ?? "-"}</div>
-              </div>
-            </TabsContent>
-          )}
+            )}
+            {mode === "create" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="podCIDR">Pod CIDR</Label>
+                  <Input id="podCIDR" value={podCIDR} onChange={(e) => setPodCIDR(e.target.value)} placeholder="10.10.0.0/16" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="serviceCIDR">Service CIDR</Label>
+                  <Input id="serviceCIDR" value={serviceCIDR} onChange={(e) => setServiceCIDR(e.target.value)} placeholder="10.20.0.0/16" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="kubeDNSServiceIP">Kube DNS Service IP</Label>
+                  <Input id="kubeDNSServiceIP" value={kubeDNSServiceIP} onChange={(e) => setKubeDNSServiceIP(e.target.value)} placeholder="10.20.0.10" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cni">CNI</Label>
+                  <Select value={cni} onValueChange={setCni}>
+                    <SelectTrigger id="cni">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cilium">Cilium</SelectItem>
+                      <SelectItem value="flannel">Flannel</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Managed ingress is only supported on Cilium.</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Node Physical CIDR</Label>
+                  <div className="rounded-md bg-muted px-3 py-2 text-sm">{cluster?.spec.network?.nodePhysicalCIDR ?? "-"}</div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Pod CIDR</Label>
+                  <div className="rounded-md bg-muted px-3 py-2 text-sm">{cluster?.spec.network?.podCIDR ?? "-"}</div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Service CIDR</Label>
+                  <div className="rounded-md bg-muted px-3 py-2 text-sm">{cluster?.spec.network?.serviceCIDR ?? "-"}</div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Kube DNS Service IP</Label>
+                  <div className="rounded-md bg-muted px-3 py-2 text-sm">{cluster?.spec.network?.kubeDNSServiceIP ?? "-"}</div>
+                </div>
+                <div className="space-y-2">
+                  <Label>CNI</Label>
+                  <div className="rounded-md bg-muted px-3 py-2 text-sm">{cluster?.spec.network?.cni ?? "cilium"}</div>
+                </div>
+              </>
+            )}
+          </TabsContent>
 
-          <TabsContent value="ingress" className="space-y-4 pt-4">
+          <TabsContent value="ingress" className="space-y-4 pt-4" forceMount>
             <div className="flex items-center gap-2">
               <Checkbox
                 id="ingressEnabled"
@@ -179,7 +233,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             </div>
           </TabsContent>
 
-          <TabsContent value="storage" className="space-y-4 pt-4">
+          <TabsContent value="storage" className="space-y-4 pt-4" forceMount>
             <div className="space-y-2">
               <Label htmlFor="storageProfile">Storage provider</Label>
               <Select value={storageProfile} onValueChange={setStorageProfile}>
@@ -212,7 +266,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
           </TabsContent>
 
           {mode === "edit" && (
-            <TabsContent value="monitoring" className="space-y-4 pt-4">
+            <TabsContent value="monitoring" className="space-y-4 pt-4" forceMount>
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="monitoringEnabled"
@@ -223,6 +277,24 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
               </div>
             </TabsContent>
           )}
+
+          <TabsContent value="controllers" className="space-y-4 pt-4" forceMount>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="cnpgEnabled"
+                checked={cnpgEnabled}
+                onCheckedChange={(v) => setCnpgEnabled(v === true)}
+              />
+              <Label htmlFor="cnpgEnabled" className="cursor-pointer text-sm">
+                <a href="https://cloudnative-pg.io/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                  CloudNative PG
+                </a>
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Cluster settings controller is always enabled.
+            </p>
+          </TabsContent>
         </Tabs>
 
         {error && (
