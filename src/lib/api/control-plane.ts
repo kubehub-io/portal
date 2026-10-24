@@ -40,6 +40,10 @@ export interface MonitoringProfile {
   enabled?: boolean
 }
 
+export interface ManagedControllerProfile {
+  enabledControllers?: string[]
+}
+
 export interface StorageProfile {
   backend?: string
 }
@@ -48,6 +52,7 @@ export interface Network {
   podCIDR?: string
   serviceCIDR?: string
   kubeDNSServiceIP?: string
+  cni?: string
   managedIngress?: boolean
 }
 
@@ -57,6 +62,7 @@ export interface ClusterSpecPatch {
   managedIngressProfile?: ManagedIngressProfile
   storageProfile?: StorageProfile
   monitoringProfile?: MonitoringProfile
+  managedControllerProfile?: ManagedControllerProfile
 }
 
 export interface CreateClusterRequest {

@@ -17,11 +17,13 @@ export interface MockCluster extends MockK8sObject {
       podCIDR?: string
       serviceCIDR?: string
       kubeDNSServiceIP?: string
+      cni?: string
       managedIngress?: boolean
     }
     managedIngressProfile?: { enabled?: boolean; email?: string }
     storageProfile?: { backend?: string }
     monitoringProfile?: { enabled?: boolean }
+    managedControllerProfile?: { enabledControllers?: string[] }
     [key: string]: unknown
   }
   status?: {
@@ -50,8 +52,10 @@ export const MOCK_CLUSTERS: MockCluster[] = [
         podCIDR: "10.42.0.0/16",
         serviceCIDR: "10.96.0.0/12",
         kubeDNSServiceIP: "10.96.0.10",
+        cni: "cilium",
         managedIngress: true,
       },
+      managedControllerProfile: { enabledControllers: ["clustersettings", "cnpg"] },
       managedIngressProfile: { enabled: true, email: "admin@kubehub.local" },
       storageProfile: { backend: "longhorn" },
       monitoringProfile: { enabled: true },
@@ -90,8 +94,10 @@ export const MOCK_CLUSTERS: MockCluster[] = [
         podCIDR: "10.48.0.0/16",
         serviceCIDR: "10.112.0.0/12",
         kubeDNSServiceIP: "10.112.0.10",
+        cni: "flannel",
         managedIngress: false,
       },
+      managedControllerProfile: { enabledControllers: ["clustersettings"] },
       managedIngressProfile: { enabled: false },
       storageProfile: { backend: "longhorn" },
       monitoringProfile: { enabled: true },

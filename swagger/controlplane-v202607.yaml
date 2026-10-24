@@ -567,6 +567,8 @@ components:
           $ref: '#/components/schemas/StorageProfile'
         monitoringProfile:
           $ref: '#/components/schemas/MonitoringProfile'
+        managedControllerProfile:
+          $ref: '#/components/schemas/ManagedControllerProfile'
     ComponentProfile:
       type: object
       properties:
@@ -625,6 +627,10 @@ components:
         kubeDNSServiceIP:
           type: string
           description: CoreDNS service IP (e.g., 10.20.0.10)
+        cni:
+          type: string
+          description: CNI plugin (e.g., cilium, flannel). Defaults to cilium and cannot be changed after creation. Managed ingress is only supported on cilium.
+          default: cilium
         managedIngress:
           type: boolean
           description: "Whether the cluster's ingresses are managed automatically (default: true)"
@@ -647,6 +653,14 @@ components:
         enabled:
           type: boolean
           description: Whether monitoring is enabled for the cluster
+    ManagedControllerProfile:
+      type: object
+      properties:
+        enabledControllers:
+          type: array
+          items:
+            type: string
+          description: Managed controllers enabled for the cluster; always includes clustersettings, which cannot be disabled
     Node:
       type: object
       properties:

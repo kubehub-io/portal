@@ -7,7 +7,7 @@ import { getConfigSync } from "@/lib/config"
 
 function getWebShellConfig() {
   const { webShellConfig } = getConfigSync()
-  return webShellConfig ?? { image: "", specVersion: "1" }
+  return webShellConfig ?? { image: "", specVersion: "2" }
 }
 
 function getDefaultPodSpec(nodeName?: string): Record<string, unknown> {
@@ -25,6 +25,7 @@ function getDefaultPodSpec(nodeName?: string): Record<string, unknown> {
     spec: {
       serviceAccountName: "default",
       automountServiceAccountToken: false,
+      hostUsers: false,
       volumes: [
         {
           name: "satoken",
@@ -40,6 +41,11 @@ function getDefaultPodSpec(nodeName?: string): Record<string, unknown> {
           name: "debug-container",
           image,
           command: ["sleep", "infinity"],
+          securityContext: {
+            runAsUser: 0,
+            runAsGroup: 0,
+            allowPrivilegeEscalation: true,
+          },
           imagePullPolicy: "IfNotPresent",
           volumeMounts: [
             {
