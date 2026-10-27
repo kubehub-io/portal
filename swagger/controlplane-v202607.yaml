@@ -642,6 +642,7 @@ components:
       enum:
         - ""
         - longhorn
+        - local-path-provisioner
     StorageProfile:
       type: object
       properties:

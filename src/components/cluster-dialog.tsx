@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
 
 interface ClusterDialogProps {
   mode: "create" | "edit"
@@ -48,6 +49,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
   const [kubeDNSServiceIP, setKubeDNSServiceIP] = useState(mode === "edit" && cluster ? cluster.spec.network?.kubeDNSServiceIP ?? "" : "")
   const [cni, setCni] = useState(mode === "edit" && cluster ? cluster.spec.network?.cni ?? "cilium" : "cilium")
   const [cnpgEnabled, setCnpgEnabled] = useState(mode === "edit" && cluster ? cluster.spec.managedControllerProfile?.enabledControllers?.includes("cnpg") === true : false)
+  const [agentSandboxEnabled, setAgentSandboxEnabled] = useState(mode === "edit" && cluster ? cluster.spec.managedControllerProfile?.enabledControllers?.includes("agent-sandbox") === true : false)
   const [error, setError] = useState("")
 
   const { data: metadata } = useQuery({
@@ -59,6 +61,11 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
 
   const handleSubmit = async () => {
     setError("")
+    const enabledControllers = [
+      "clustersettings",
+      ...(cnpgEnabled ? ["cnpg"] : []),
+      ...(agentSandboxEnabled ? ["agent-sandbox"] : []),
+    ]
     try {
       if (mode === "create") {
         await createCluster.mutateAsync({
@@ -73,7 +80,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             },
             managedIngressProfile: { enabled: ingressEnabled, email: ingressEmail },
             storageProfile: { backend: storageProfile === "none" ? "" : storageProfile },
-            managedControllerProfile: { enabledControllers: cnpgEnabled ? ["clustersettings", "cnpg"] : ["clustersettings"] },
+            managedControllerProfile: { enabledControllers },
           },
         })
         onOpenChange(false)
@@ -86,7 +93,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
             managedIngressProfile: { enabled: ingressEnabled, email: ingressEmail },
             storageProfile: { backend: storageProfile === "none" ? "" : storageProfile },
             monitoringProfile: { enabled: monitoringEnabled },
-            managedControllerProfile: { enabledControllers: cnpgEnabled ? ["clustersettings", "cnpg"] : ["clustersettings"] },
+            managedControllerProfile: { enabledControllers },
           },
         }, etag)
         queryClient.invalidateQueries({ queryKey: ["clusters"] })
@@ -242,6 +249,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="longhorn">Longhorn</SelectItem>
+                  <SelectItem value="local-path-provisioner">Local Path Provisioner</SelectItem>
                   <SelectItem value="none">None (self-managed)</SelectItem>
                 </SelectContent>
               </Select>
@@ -255,6 +263,16 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
                 </p>
                 <p className="mt-1">Your stateful pod can travel free across nodes, longhorn can handle your pod storage smoothly.</p>
                 <p className="mt-1">When you have multiple node and want to migrate a node, just few click on the longhorn UI, you PersistentVolumes get moved, compare to manual copy files.</p>
+              </div>
+            )}
+            {storageProfile === "local-path-provisioner" && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                <p className="font-medium">
+                  <a href="https://github.com/rancher/local-path-provisioner" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                    Local Path Provisioner
+                  </a>
+                </p>
+                <p className="mt-1">PersistentVolumes are stored on the local filesystem of a node. Data migration can be significantly harder than with Longhorn when moving workloads or replacing nodes.</p>
               </div>
             )}
             {storageProfile === "none" && (
@@ -289,7 +307,22 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
                 <a href="https://cloudnative-pg.io/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
                   CloudNative PG
                 </a>{" "}
+                <Badge variant="warning" className="ml-1 align-middle text-[10px]">Beta</Badge>
                 — manages PostgreSQL servers, databases, and roles.
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="agentSandboxEnabled"
+                checked={agentSandboxEnabled}
+                onCheckedChange={(v) => setAgentSandboxEnabled(v === true)}
+              />
+              <Label htmlFor="agentSandboxEnabled" className="cursor-pointer text-sm">
+                <a href="https://github.com/kubernetes-sigs/agent-sandbox" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                  Agent Sandbox
+                </a>{" "}
+                <Badge variant="warning" className="ml-1 align-middle text-[10px]">Beta</Badge>
+                — provides sandboxed environments for agents.
               </Label>
             </div>
             <p className="text-xs text-muted-foreground">
