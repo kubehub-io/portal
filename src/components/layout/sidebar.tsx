@@ -32,6 +32,7 @@ import {
   X,
   Terminal,
   FilePlus,
+  Route,
 } from "lucide-react"
 import { useState } from "react"
 
@@ -92,6 +93,7 @@ export function Sidebar() {
       items: [
         { label: "Services", href: "/dashboard/services", icon: <Network className="h-4 w-4" /> },
         { label: "EndpointSlices", href: "/dashboard/endpointslices", icon: <Share2 className="h-4 w-4" /> },
+        { label: "HubHttpRoutes", href: "/dashboard/hubhttproutes", icon: <Route className="h-4 w-4" /> },
       ],
     },
     {
