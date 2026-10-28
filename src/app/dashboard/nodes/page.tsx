@@ -523,7 +523,7 @@ export default function NodesPage() {
 VERSION="$(curl -fsSL https://api.github.com/repos/kubehub-io/cli/releases/latest | sed -n 's/.*"tag_name": "\\(.*\\)",/\\1/p')"
 sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/\${VERSION}/cli_Linux_\${ARCH}
 sudo chmod +x /usr/bin/kubehubcli
-sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-name>"}`}</code>
+sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-name>"} --device-mode`}</code>
               </pre>
               <p className="text-muted-foreground">
                 View the CLI source:{" "}

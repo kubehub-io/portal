@@ -40,7 +40,7 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
 
   const [name, setName] = useState("")
   const [region, setRegion] = useState("us-east-1")
-  const [ingressEnabled, setIngressEnabled] = useState(mode === "edit" && cluster ? cluster.spec.managedIngressProfile?.enabled !== false : true)
+  const [ingressEnabled, setIngressEnabled] = useState(mode === "edit" && cluster ? cluster.spec.managedIngressProfile?.enabled !== false : false)
   const [ingressEmail, setIngressEmail] = useState(mode === "edit" && cluster ? cluster.spec.managedIngressProfile?.email ?? "" : "")
   const [storageProfile, setStorageProfile] = useState(mode === "edit" && cluster ? cluster.spec.storageProfile?.backend ?? "none" : "none")
   const [monitoringEnabled, setMonitoringEnabled] = useState(mode === "edit" && cluster ? cluster.spec.monitoringProfile?.enabled === true : false)
