@@ -360,31 +360,28 @@ choco install kubelogin`}</pre>
                           <tr className="border-b bg-muted/50">
                             <th className="px-3 py-2 text-left font-medium">Component</th>
                             <th className="px-3 py-2 text-left font-medium">Version</th>
+                            <th className="px-3 py-2 text-left font-medium">Link</th>
                           </tr>
                         </thead>
                         <tbody>
                           {cpEntries.map(([key, comp]) => (
                             <tr key={key} className="border-b last:border-0">
-                              <td className="px-3 py-2 font-mono">
+                              <td className="px-3 py-2 font-mono">{comp.id ?? key}</td>
+                              <td className="px-3 py-2">{comp.version ?? "-"}</td>
+                              <td className="px-3 py-2">
                                 {(() => {
                                   const id = comp.id ?? key
                                   const link = getComponentLink(id)
                                   return link ? (
-                                    <a
-                                      href={link}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-primary underline underline-offset-2"
-                                    >
-                                      {id}
+                                    <a href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline underline-offset-2">
                                       <ExternalLink className="h-3 w-3" />
+                                      Docs
                                     </a>
                                   ) : (
-                                    id
+                                    "-"
                                   )
                                 })()}
                               </td>
-                              <td className="px-3 py-2">{comp.version ?? "-"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -404,32 +401,29 @@ choco install kubelogin`}</pre>
                             <th className="px-3 py-2 text-left font-medium">Component</th>
                             <th className="px-3 py-2 text-left font-medium">Version</th>
                             <th className="px-3 py-2 text-left font-medium">Dependencies</th>
+                            <th className="px-3 py-2 text-left font-medium">Link</th>
                           </tr>
                         </thead>
                         <tbody>
                           {addonEntries.map(([key, comp]) => (
                             <tr key={key} className="border-b last:border-0">
-                              <td className="px-3 py-2 font-mono">
+                              <td className="px-3 py-2 font-mono">{comp.id ?? key}</td>
+                              <td className="px-3 py-2">{comp.version ?? "-"}</td>
+                              <td className="px-3 py-2">{((comp as { dependencies?: string[] }).dependencies ?? []).join(", ") || "-"}</td>
+                              <td className="px-3 py-2">
                                 {(() => {
                                   const id = comp.id ?? key
                                   const link = getComponentLink(id)
                                   return link ? (
-                                    <a
-                                      href={link}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-primary underline underline-offset-2"
-                                    >
-                                      {id}
+                                    <a href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline underline-offset-2">
                                       <ExternalLink className="h-3 w-3" />
+                                      Docs
                                     </a>
                                   ) : (
-                                    id
+                                    "-"
                                   )
                                 })()}
                               </td>
-                              <td className="px-3 py-2">{comp.version ?? "-"}</td>
-                              <td className="px-3 py-2">{((comp as { dependencies?: string[] }).dependencies ?? []).join(", ") || "-"}</td>
                             </tr>
                           ))}
                         </tbody>
