@@ -171,6 +171,35 @@ paths:
           description: Unauthorized
         '404':
           description: Cluster not found
+  /clusters/{name}/nodeJoinToken:
+    post:
+      summary: Issue a node join token
+      description: Issue a short-lived token that may be used only to create a node for this cluster.
+      operationId: nodeJoinToken
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Node join token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodeJoinToken: { type: string }
+                  token_type: { type: string }
+                  expires_in: { type: integer }
+                  scope: { type: string }
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
   /clusters/{cluster}/nodes:
     get:
       summary: List nodes
@@ -226,6 +255,8 @@ paths:
           description: Invalid request
         '401':
           description: Unauthorized
+        '409':
+          description: Node already exists
         '404':
           description: Cluster not found
   /clusters/{cluster}/nodes/{node}/bootstrapSecret:

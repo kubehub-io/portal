@@ -127,6 +127,22 @@ export async function downloadKubeconfig(name: string, certbased = false): Promi
   return data.kubeconfig
 }
 
+// ── Node Join Token ──────────────────────────────────────
+
+export interface NodeJoinTokenResponse {
+  nodeJoinToken: string
+  token_type?: string
+  expires_in: number
+  scope?: string
+}
+
+export async function issueNodeJoinToken(clusterName: string): Promise<NodeJoinTokenResponse> {
+  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/nodeJoinToken`, {
+    method: "POST",
+  })
+  return res.json()
+}
+
 // ── Operations (shared by Cluster, Node, AppIngress) ─────
 
 export interface OperationError {
