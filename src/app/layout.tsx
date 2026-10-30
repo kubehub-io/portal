@@ -17,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "KubeHub",
   description: "Kubernetes Dashboard",
+  twitter: {
+    card: "summary",
+    title: "Kubehub",
+    description: "Managed Kubernetes, Bring your own node from anywhere, local friendly.",
+  },
 }
 
 export default function RootLayout({

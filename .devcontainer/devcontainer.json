@@ -7,7 +7,6 @@
     },
     "ghcr.io/devcontainers/features/common-utils":{},
     "ghcr.io/devcontainers/features/node:latest":{},
-    "ghcr.io/jsburckhardt/devcontainer-features/opencode:1": {},
     "ghcr.io/jsburckhardt/devcontainer-features/gitleaks:1":{},
     "ghcr.io/iyaki/devcontainer-features/lefthook:2": {}
   },
@@ -25,6 +24,6 @@
     }
   },
 
-  "onCreateCommand": "node --version",
+  "onCreateCommand": "curl -fsSL https://opencode.ai/v2/install | bash",
   "postCreateCommand": "echo 'Node environment ready!'"
 }

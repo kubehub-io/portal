@@ -19,7 +19,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Info, Loader2, Trash2, AlertTriangle } from "lucide-react"
+import { useNodeJoinToken } from "@/hooks/use-node-join-token"
+import { Plus, Info, Loader2, Trash2, AlertTriangle, Clock, Copy, Check } from "lucide-react"
 
 interface MergedNode {
   name: string
@@ -151,6 +152,12 @@ function isConditionHealthy(cond: NodeCondition): boolean {
   return falseIsHealthy ? cond.status === "False" : cond.status === "True"
 }
 
+function formatTokenRemaining(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  return `${minutes}:${String(remainder).padStart(2, "0")}`
+}
+
 function formatRelativeTime(value?: string): string {
   if (!value) return "-"
   const d = new Date(value)
@@ -245,6 +252,15 @@ export default function NodesPage() {
 
   const [addOpen, setAddOpen] = useState(false)
   const [clusterStoppedOpen, setClusterStoppedOpen] = useState(false)
+  const [scriptCopied, setScriptCopied] = useState(false)
+
+  const {
+    token: joinToken,
+    secondsRemaining: joinTokenRemaining,
+    isLoading: isJoinTokenLoading,
+    error: joinTokenError,
+    refresh: refreshJoinToken,
+  } = useNodeJoinToken(activeCluster?.metadata.name, addOpen)
 
   const [detailTarget, setDetailTarget] = useState<MergedNode | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<MergedNode | null>(null)
@@ -442,6 +458,22 @@ export default function NodesPage() {
     annotations: "",
   })) as unknown as Record<string, unknown>[]
 
+  const joinCommand = `ARCH="$(uname -m | sed 's/aarch64/arm64/')"
+VERSION="$(curl -fsSL https://api.github.com/repos/kubehub-io/cli/releases/latest | sed -n 's/.*"tag_name": "\\(.*\\)",/\\1/p')"
+sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/\${VERSION}/cli_Linux_\${ARCH}
+sudo chmod +x /usr/bin/kubehubcli
+sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-name>"} --device-mode --token ${joinToken?.nodeJoinToken ?? "<token>"}`
+
+  async function copyJoinCommand() {
+    try {
+      await navigator.clipboard.writeText(joinCommand)
+      setScriptCopied(true)
+      window.setTimeout(() => setScriptCopied(false), 2000)
+    } catch {
+      setScriptCopied(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -518,13 +550,65 @@ export default function NodesPage() {
             <div className="space-y-1.5">
               <h4 className="font-semibold">2. SSH and run the join command</h4>
               <p className="text-muted-foreground">SSH into the new node and run (do SSH to it, so your login experience on step 3 is easier):</p>
-              <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs">
-                <code className="whitespace-pre font-mono">{`ARCH="$(uname -m | sed 's/aarch64/arm64/')"
-VERSION="$(curl -fsSL https://api.github.com/repos/kubehub-io/cli/releases/latest | sed -n 's/.*"tag_name": "\\(.*\\)",/\\1/p')"
-sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/\${VERSION}/cli_Linux_\${ARCH}
-sudo chmod +x /usr/bin/kubehubcli
-sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-name>"} --device-mode`}</code>
-              </pre>
+              <div className="relative">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="absolute right-2 top-2 z-10 h-7 px-2 text-xs"
+                  onClick={copyJoinCommand}
+                  disabled={!joinToken}
+                >
+                  {scriptCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {scriptCopied ? "Copied" : "Copy"}
+                </Button>
+                <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 pr-24 text-xs">
+                  <code className="whitespace-pre-wrap break-all font-mono">{joinCommand}</code>
+                </pre>
+              </div>
+              {isJoinTokenLoading && !joinToken && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Issuing join token...
+                </div>
+              )}
+              {joinTokenError && (
+                <div className="flex items-center gap-1.5 text-xs text-destructive">
+                  <span>Failed to issue join token: {joinTokenError}</span>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => void refreshJoinToken()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
+              {joinToken && joinTokenRemaining !== null && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    Token expires in{" "}
+                    <span
+                      className={
+                        joinTokenRemaining <= 120
+                          ? "font-mono text-destructive"
+                          : "font-mono text-foreground"
+                      }
+                    >
+                      {formatTokenRemaining(joinTokenRemaining)}
+                    </span>
+                  </span>
+                  {isJoinTokenLoading && (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                      <span className="text-muted-foreground">Refreshing...</span>
+                    </>
+                  )}
+                </div>
+              )}
               <p className="text-muted-foreground">
                 View the CLI source:{" "}
                 <a href="https://github.com/kubehub-io/cli" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
