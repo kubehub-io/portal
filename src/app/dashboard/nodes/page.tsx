@@ -563,7 +563,7 @@ sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-
                   {scriptCopied ? "Copied" : "Copy"}
                 </Button>
                 <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 pr-24 text-xs">
-                  <code className="whitespace-pre font-mono">{joinCommand}</code>
+                  <code className="whitespace-pre-wrap break-all font-mono">{joinCommand}</code>
                 </pre>
               </div>
               {isJoinTokenLoading && !joinToken && (
