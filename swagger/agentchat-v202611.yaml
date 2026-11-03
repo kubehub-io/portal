@@ -1,0 +1,291 @@
+openapi: 3.0.3
+info:
+  title: Kubehub Agent Chat API
+  version: 2026.10.0
+  description: |
+    API for creating and continuing support-agent chat conversations.
+    All chat endpoints require a bearer token. The caller's user and tenant
+    ownership are derived from the token and are not accepted in request bodies.
+servers:
+  - url: /
+tags:
+  - name: Health
+  - name: Chat
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: OK
+  /apis/agentchat-v202611/threads:
+    get:
+      tags: [Chat]
+      summary: List the caller's chat threads
+      operationId: listThreads
+      responses:
+        '200':
+          description: Chat threads, newest activity first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Thread'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/StoreError'
+    post:
+      tags: [Chat]
+      summary: Create a chat thread
+      operationId: createThread
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateThreadRequest'
+            examples:
+              cluster:
+                value:
+                  title: Production support
+                  cluster_name: cluster-abc
+      responses:
+        '200':
+          description: Created chat thread
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Cluster not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Failed to retrieve cluster connection details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/StoreError'
+  /apis/agentchat-v202611/threads/{threadID}:
+    parameters:
+      - $ref: '#/components/parameters/ThreadID'
+    get:
+      tags: [Chat]
+      summary: Get a chat thread
+      operationId: getThread
+      responses:
+        '200':
+          description: Chat thread
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/StoreError'
+  /apis/agentchat-v202611/threads/{threadID}/messages:
+    parameters:
+      - $ref: '#/components/parameters/ThreadID'
+    get:
+      tags: [Chat]
+      summary: List messages in a chat thread
+      operationId: listMessages
+      responses:
+        '200':
+          description: Messages in chronological order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/StoreError'
+    post:
+      tags: [Chat]
+      summary: Send a message and stream the agent response
+      description: |
+        Appends the user message and starts an agent run. The response is a
+        server-sent event stream. Tokens are emitted as they are generated;
+        the stream ends with a `done` event.
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+            example:
+              content: Why is my application pod restarting?
+      responses:
+        '200':
+          description: Server-sent agent response stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                completed:
+                  summary: Successful run
+                  value: |
+                    event: token
+                    data: {"content":"The pod is restarting because "}
+
+                    event: token
+                    data: {"content":"..."}
+
+                    event: done
+                    data: {"status":"completed","run_id":"run-id","thread_id":"thread-id","message_id":"message-id"}
+                failed:
+                  summary: Failed run
+                  value: |
+                    event: error
+                    data: {"message":"the agent run failed"}
+
+                    event: done
+                    data: {"status":"failed","run_id":"run-id","thread_id":"thread-id","error":"the agent run failed"}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Another agent run is already in progress for this thread
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: RUN_IN_PROGRESS
+                  message: an agent run is already in progress for this thread
+        '500':
+          $ref: '#/components/responses/StoreError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ThreadID:
+      name: threadID
+      in: path
+      required: true
+      description: Chat thread identifier
+      schema:
+        type: string
+        minLength: 1
+  schemas:
+    CreateThreadRequest:
+      type: object
+      description: The cluster name identifies the caller's existing cluster.
+      properties:
+        title:
+          type: string
+        cluster_name:
+          type: string
+      required: [cluster_name]
+    SendMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+    Thread:
+      type: object
+      required: [id, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        cluster_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Message:
+      type: object
+      required: [id, thread_id, role, content, created_at]
+      properties:
+        id:
+          type: string
+        thread_id:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Thread not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    StoreError:
+      description: Database or persistence error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
