@@ -21,7 +21,7 @@ import {
 } from "@/hooks/use-agent-chat"
 import { useClusterStore } from "@/stores/cluster-store"
 import { useNow } from "@/hooks/use-now"
-import { deriveThreadTitle, threadTitle } from "@/lib/chat"
+import { deriveThreadTitle, threadTitle, withPendingUserMessage } from "@/lib/chat"
 import { ChatComposer } from "@/components/chat/chat-composer"
 import {
   ChatErrorBubble,
@@ -85,6 +85,7 @@ export default function AgentChatPage() {
   const [newChat, setNewChat] = useState(false)
   const [draft, setDraft] = useState("")
   const [pendingUser, setPendingUser] = useState<ChatMessage | null>(null)
+  const [pendingUserBaseline, setPendingUserBaseline] = useState(0)
   const [activeStreamThread, setActiveStreamThread] = useState<string | null>(null)
   const [sendError, setSendError] = useState<string | null>(null)
 
@@ -109,6 +110,7 @@ export default function AgentChatPage() {
     content: streamContent,
     progress: streamProgress,
     error: streamError,
+    done: streamDone,
   } = useChatStream()
 
   const activeCluster = useClusterStore((state) => state.activeCluster)
@@ -123,11 +125,29 @@ export default function AgentChatPage() {
     if (!pendingUser || pendingUser.thread_id !== effectiveSelectedID) {
       return serverMessages
     }
-    return [...serverMessages, pendingUser]
-  }, [messagesQuery.data, pendingUser, effectiveSelectedID])
+    return withPendingUserMessage(serverMessages, pendingUser, pendingUserBaseline)
+  }, [messagesQuery.data, pendingUser, pendingUserBaseline, effectiveSelectedID])
+
+  // Once the server has stored the assistant message, prefer its copy over the
+  // live stream so the response is not rendered twice during the refetch.
+  const streamPersisted = useMemo(() => {
+    if (!streamDone) return false
+    const serverMessages = messagesQuery.data ?? []
+    if (streamDone.message_id) {
+      return serverMessages.some((message) => message.id === streamDone.message_id)
+    }
+    return (
+      streamContent.length > 0 &&
+      serverMessages.some(
+        (message) =>
+          message.role === "assistant" && message.content === streamContent,
+      )
+    )
+  }, [streamDone, streamContent, messagesQuery.data])
 
   const showStream =
     activeStreamThread === effectiveSelectedID &&
+    !streamPersisted &&
     (isStreaming || streamContent.length > 0 || streamProgress.length > 0 || !!streamError)
 
   const showInitialLoading =
@@ -184,6 +204,16 @@ export default function AgentChatPage() {
 
     setDraft("")
     stickToBottom.current = true
+    const cachedMessages =
+      queryClient.getQueryData<ChatMessage[]>(chatMessagesKey(threadID)) ?? []
+    setPendingUserBaseline(
+      cachedMessages.filter(
+        (message) =>
+          message.thread_id === threadID &&
+          message.role === "user" &&
+          message.content === text,
+      ).length,
+    )
     setPendingUser({
       id: `local-${Date.now()}`,
       thread_id: threadID,
@@ -201,9 +231,10 @@ export default function AgentChatPage() {
     try {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: chatMessagesKey(threadID) }),
-        queryClient.invalidateQueries({ queryKey: CHAT_THREADS_KEY }),
+        queryClient.invalidateQueries({ queryKey: CHAT_THREADS_KEY, exact: true }),
       ])
     } finally {
+      setPendingUserBaseline(0)
       setPendingUser(null)
       setActiveStreamThread(null)
       resetStream()

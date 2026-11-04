@@ -1,4 +1,4 @@
-import type { AgentProgressEvent, ChatThread } from "@/lib/api/agent-chat"
+import type { AgentProgressEvent, ChatMessage, ChatThread } from "@/lib/api/agent-chat"
 
 /** Title shown in the thread list, with a sensible fallback for untitled threads. */
 export function threadTitle(thread: ChatThread): string {
@@ -52,4 +52,31 @@ export function progressLabel(event: AgentProgressEvent): string {
 
 export function isProgressRunning(event: AgentProgressEvent): boolean {
   return event.type.endsWith("_started")
+}
+
+/**
+ * Overlay a just-sent user message on the server list until it is persisted.
+ *
+ * `baselineMatches` is how many identical messages were already in the list
+ * when the send started. It prevents sending the same text twice from hiding
+ * the new optimistic bubble as soon as the previous copy shows up.
+ */
+export function withPendingUserMessage(
+  serverMessages: ChatMessage[],
+  pending: ChatMessage | null,
+  baselineMatches = 0,
+): ChatMessage[] {
+  if (!pending) return serverMessages
+
+  const persistedMatches = serverMessages.filter(
+    (message) =>
+      message.thread_id === pending.thread_id &&
+      message.role === "user" &&
+      message.content === pending.content,
+  ).length
+
+  // The server already reports the pending message, so rendering the optimistic
+  // copy as well would show the bubble twice.
+  if (persistedMatches > baselineMatches) return serverMessages
+  return [...serverMessages, pending]
 }

@@ -40,7 +40,9 @@ export function useCreateChatThread() {
         if (!current) return [thread]
         return [thread, ...current.filter((item) => item.id !== thread.id)]
       })
-      qc.invalidateQueries({ queryKey: CHAT_THREADS_KEY })
+      // Only the thread list changed; without `exact` this would also refetch
+      // every thread's messages because their keys share this prefix.
+      qc.invalidateQueries({ queryKey: CHAT_THREADS_KEY, exact: true })
     },
   })
 }

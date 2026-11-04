@@ -106,7 +106,7 @@ export function StreamingAssistantBubble({
             <AgentMarkdown content={content} />
             {isStreaming && (
               <span
-                className="ml-0.5 inline-block h-3.5 w-1 animate-pulse rounded-sm bg-foreground align-middle"
+                className="ml-0.5 inline-block h-3.5 w-1 animate-pulse rounded-sm bg-green-600 align-middle dark:bg-green-400"
                 aria-hidden="true"
               />
             )}
