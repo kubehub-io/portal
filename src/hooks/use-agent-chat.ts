@@ -94,70 +94,80 @@ export function useChatStream() {
     setState(INITIAL_STATE)
   }, [])
 
-  const send = useCallback(async (threadID: string, content: string): Promise<SendResult> => {
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
+  const send = useCallback(
+    async (
+      threadID: string,
+      content: string,
+      agentServiceAccount?: string,
+    ): Promise<SendResult> => {
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
 
-    sequence.current = 0
-    setState({ ...INITIAL_STATE, isStreaming: true })
+      sequence.current = 0
+      setState({ ...INITIAL_STATE, isStreaming: true })
 
-    let failure: string | null = null
+      let failure: string | null = null
 
-    try {
-      for await (const event of agentChat.streamMessage(threadID, content, controller.signal)) {
-        if (event.type === "token") {
-          setState((current) => ({ ...current, content: current.content + event.content }))
-          continue
-        }
-
-        if (event.type === "progress") {
-          sequence.current += 1
-          const item: ChatProgressItem = {
-            ...event.progress,
-            id: sequence.current,
-            at: Date.now(),
+      try {
+        for await (const event of agentChat.streamMessage(threadID, content, {
+          signal: controller.signal,
+          agentServiceAccount,
+        })) {
+          if (event.type === "token") {
+            setState((current) => ({ ...current, content: current.content + event.content }))
+            continue
           }
-          setState((current) => ({ ...current, progress: [...current.progress, item] }))
-          continue
-        }
 
-        if (event.type === "error") {
-          failure = event.message
-          setState((current) => ({ ...current, error: event.message }))
-          continue
-        }
-
-        if (event.type === "done") {
-          if (event.done.status !== "completed") {
-            failure =
-              event.done.error ??
-              (event.done.status === "failed"
-                ? "The agent run failed"
-                : event.done.status)
+          if (event.type === "progress") {
+            sequence.current += 1
+            const item: ChatProgressItem = {
+              ...event.progress,
+              id: sequence.current,
+              at: Date.now(),
+            }
+            setState((current) => ({ ...current, progress: [...current.progress, item] }))
+            continue
           }
-          setState((current) => ({
-            ...current,
-            done: event.done,
-            error:
-              current.error ??
-              event.done.error ??
-              (event.done.status === "failed" ? "The agent run failed" : null),
-          }))
-        }
-      }
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        failure = error instanceof Error ? error.message : "The agent run failed"
-        setState((current) => ({ ...current, error: failure }))
-      }
-    } finally {
-      if (abortRef.current === controller) abortRef.current = null
-      setState((current) => ({ ...current, isStreaming: false }))
-    }
 
-    return failure ? { ok: false, error: failure } : { ok: true }
-  }, [])
+          if (event.type === "error") {
+            failure = event.message
+            setState((current) => ({ ...current, error: event.message }))
+            continue
+          }
+
+          if (event.type === "done") {
+            if (event.done.status !== "completed") {
+              failure =
+                event.done.error ??
+                (event.done.status === "failed"
+                  ? "The agent run failed"
+                  : event.done.status)
+            }
+            setState((current) => ({
+              ...current,
+              done: event.done,
+              error:
+                current.error ??
+                event.done.error ??
+                (event.done.status === "failed" ? "The agent run failed" : null),
+            }))
+          }
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          failure = error instanceof Error ? error.message : "The agent run failed"
+          setState((current) => ({ ...current, error: failure }))
+        }
+      } finally {
+        if (abortRef.current === controller) abortRef.current = null
+        setState((current) => ({ ...current, isStreaming: false }))
+      }
+
+      return failure ? { ok: false, error: failure } : { ok: true }
+    },
+    [],
+  )
 
   return { ...state, send, reset }
 }

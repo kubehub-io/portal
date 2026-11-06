@@ -30,6 +30,48 @@ export interface CreateThreadInput {
 
 export interface SendMessageInput {
   content: string
+  /**
+   * Agent service account as `namespace/name`. Omitted to use the server
+   * default (`agent-sandbox/default-chat-agent-sa`).
+   */
+  agentServiceAccount?: string
+}
+
+/** Namespace the Chat API uses when `agentServiceAccount` is omitted. */
+export const DEFAULT_AGENT_NAMESPACE = "agent-sandbox"
+/** Service account the Chat API uses when `agentServiceAccount` is omitted. */
+export const DEFAULT_AGENT_SERVICE_ACCOUNT = "default-chat-agent-sa"
+
+export interface AgentServiceAccount {
+  namespace: string
+  serviceAccount: string
+}
+
+export function defaultAgentServiceAccount(): AgentServiceAccount {
+  return {
+    namespace: DEFAULT_AGENT_NAMESPACE,
+    serviceAccount: DEFAULT_AGENT_SERVICE_ACCOUNT,
+  }
+}
+
+export function isDefaultAgentServiceAccount(account: AgentServiceAccount): boolean {
+  return (
+    account.namespace === DEFAULT_AGENT_NAMESPACE &&
+    account.serviceAccount === DEFAULT_AGENT_SERVICE_ACCOUNT
+  )
+}
+
+/** Wire value for a namespace/service-account selection, or undefined for the server default. */
+export function agentServiceAccountRef(
+  account: AgentServiceAccount,
+): string | undefined {
+  if (isDefaultAgentServiceAccount(account) || !account.serviceAccount) return undefined
+  return `${account.namespace}/${account.serviceAccount}`
+}
+
+export interface StreamMessageOptions {
+  signal?: AbortSignal
+  agentServiceAccount?: string
 }
 
 // ── Streaming event payloads ─────────────────────────────
@@ -121,8 +163,12 @@ export async function listMessages(threadID: string): Promise<ChatMessage[]> {
 export async function* streamMessage(
   threadID: string,
   content: string,
-  signal?: AbortSignal,
+  options: StreamMessageOptions = {},
 ): AsyncGenerator<AgentStreamEvent> {
+  const { signal, agentServiceAccount } = options
+  const input: SendMessageInput = { content }
+  if (agentServiceAccount) input.agentServiceAccount = agentServiceAccount
+
   const res = await authFetch(
     `${AGENT_CHAT_API_BASE}/threads/${encodeURIComponent(threadID)}/messages`,
     {
@@ -131,7 +177,7 @@ export async function* streamMessage(
         "Content-Type": "application/json",
         Accept: "text/event-stream",
       },
-      body: JSON.stringify({ content } satisfies SendMessageInput),
+      body: JSON.stringify(input),
       cache: "no-store",
       signal,
     },

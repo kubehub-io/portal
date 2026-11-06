@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { authFetch } from "@/lib/api/http"
-import { createThread, streamMessage, type AgentStreamEvent } from "@/lib/api/agent-chat"
+import {
+  agentServiceAccountRef,
+  createThread,
+  defaultAgentServiceAccount,
+  isDefaultAgentServiceAccount,
+  streamMessage,
+  type AgentStreamEvent,
+} from "@/lib/api/agent-chat"
 
 vi.mock("@/lib/api/http", () => ({
   authFetch: vi.fn(),
@@ -19,9 +26,13 @@ function streamFromText(text: string): ReadableStream<Uint8Array> {
   })
 }
 
-async function collect(threadID: string, content: string): Promise<AgentStreamEvent[]> {
+async function collect(
+  threadID: string,
+  content: string,
+  options?: { agentServiceAccount?: string },
+): Promise<AgentStreamEvent[]> {
   const events: AgentStreamEvent[] = []
-  for await (const event of streamMessage(threadID, content)) {
+  for await (const event of streamMessage(threadID, content, options)) {
     events.push(event)
   }
   return events
@@ -58,6 +69,22 @@ describe("createThread", () => {
     )
   })
 })
+describe("agentServiceAccountRef", () => {
+  it("omits the payload for the server default account", () => {
+    expect(isDefaultAgentServiceAccount(defaultAgentServiceAccount())).toBe(true)
+    expect(agentServiceAccountRef(defaultAgentServiceAccount())).toBeUndefined()
+  })
+
+  it("encodes another account as namespace/name", () => {
+    expect(
+      agentServiceAccountRef({
+        namespace: "team-a",
+        serviceAccount: "troubleshooter",
+      }),
+    ).toBe("team-a/troubleshooter")
+  })
+})
+
 describe("streamMessage", () => {
   beforeEach(() => {
     authFetchMock.mockReset()
@@ -110,6 +137,44 @@ describe("streamMessage", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ content: "is it reachable?" }),
+      }),
+    )
+  })
+
+  it("sends a non-default agent service account as namespace/name", async () => {
+    authFetchMock.mockResolvedValue({
+      body: streamFromText(
+        'event: done\ndata: {"status":"completed"}\n\n',
+      ),
+    } as unknown as Response)
+
+    await collect("thread-1", "hello", {
+      agentServiceAccount: "team-a/troubleshooter",
+    })
+
+    expect(authFetchMock).toHaveBeenCalledWith(
+      "/apis/agentchat-v202611/threads/thread-1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          content: "hello",
+          agentServiceAccount: "team-a/troubleshooter",
+        }),
+      }),
+    )
+  })
+
+  it("omits agentServiceAccount when no account is provided", async () => {
+    authFetchMock.mockResolvedValue({
+      body: streamFromText('event: done\ndata: {"status":"completed"}\n\n'),
+    } as unknown as Response)
+
+    await collect("thread-1", "hello")
+
+    expect(authFetchMock).toHaveBeenCalledWith(
+      "/apis/agentchat-v202611/threads/thread-1/messages",
+      expect.objectContaining({
+        body: JSON.stringify({ content: "hello" }),
       }),
     )
   })

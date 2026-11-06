@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react"
 import { Loader2, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import type { AgentServiceAccount } from "@/lib/api/agent-chat"
+import { AgentAccountPicker } from "@/components/chat/agent-account-picker"
 import { cn } from "@/lib/utils"
 
 interface ChatComposerProps {
@@ -11,6 +13,8 @@ interface ChatComposerProps {
   onChange: (value: string) => void
   onSubmit: () => void
   isStreaming: boolean
+  agentAccount: AgentServiceAccount
+  onAgentAccountChange: (account: AgentServiceAccount) => void
   disabled?: boolean
   placeholder?: string
   className?: string
@@ -21,6 +25,8 @@ export function ChatComposer({
   onChange,
   onSubmit,
   isStreaming,
+  agentAccount,
+  onAgentAccountChange,
   disabled = false,
   placeholder = "Ask the KubeHub agent…",
   className,
@@ -48,6 +54,11 @@ export function ChatComposer({
         submit()
       }}
     >
+      <AgentAccountPicker
+        value={agentAccount}
+        onChange={onAgentAccountChange}
+        disabled={disabled || isStreaming}
+      />
       <div className="flex items-end gap-2 rounded-lg border bg-background p-2 focus-within:ring-1 focus-within:ring-ring">
         <Textarea
           ref={textareaRef}

@@ -10,7 +10,13 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react"
-import type { ChatMessage } from "@/lib/api/agent-chat"
+import {
+  agentServiceAccountRef,
+  defaultAgentServiceAccount,
+  isDefaultAgentServiceAccount,
+  type AgentServiceAccount,
+  type ChatMessage,
+} from "@/lib/api/agent-chat"
 import {
   CHAT_THREADS_KEY,
   chatMessagesKey,
@@ -88,6 +94,9 @@ export default function AgentChatPage() {
   const [pendingUserBaseline, setPendingUserBaseline] = useState(0)
   const [activeStreamThread, setActiveStreamThread] = useState<string | null>(null)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [agentAccount, setAgentAccount] = useState<AgentServiceAccount>(
+    defaultAgentServiceAccount,
+  )
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
@@ -172,11 +181,21 @@ export default function AgentChatPage() {
     stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
   }
 
+  const resetAgentAccount = useCallback(() => {
+    setAgentAccount(defaultAgentServiceAccount())
+  }, [])
+
   const handleSend = useCallback(async () => {
     const text = draft.trim()
     if (!text || isStreaming || isCreatingThread) return
 
     setSendError(null)
+
+    if (!isDefaultAgentServiceAccount(agentAccount) && !agentAccount.serviceAccount) {
+      setSendError("Select a service account for the agent before sending.")
+      return
+    }
+
     let threadID = effectiveSelectedID
 
     if (!threadID) {
@@ -223,7 +242,7 @@ export default function AgentChatPage() {
     })
     setActiveStreamThread(threadID)
 
-    const result = await send(threadID, text)
+    const result = await send(threadID, text, agentServiceAccountRef(agentAccount))
     if (!result.ok) {
       setSendError(result.error ?? "The agent run failed")
     }
@@ -246,6 +265,7 @@ export default function AgentChatPage() {
     effectiveSelectedID,
     createThread,
     activeCluster,
+    agentAccount,
     send,
     queryClient,
     resetStream,
@@ -259,15 +279,22 @@ export default function AgentChatPage() {
     setPendingUser(null)
     setActiveStreamThread(null)
     setSendError(null)
+    resetAgentAccount()
     resetStream()
-  }, [isStreaming, isCreatingThread, canCreateThread, resetStream])
+  }, [isStreaming, isCreatingThread, canCreateThread, resetAgentAccount, resetStream])
 
-  const selectThread = useCallback((threadID: string) => {
-    setNewChat(false)
-    setSelectedID(threadID)
-    setDraft("")
-    setSendError(null)
-  }, [])
+  const selectThread = useCallback(
+    (threadID: string) => {
+      // The agent account choice is scoped to a thread. Leaving a thread resets
+      // it so returning to it starts from the readonly default again.
+      if (threadID !== effectiveSelectedID) resetAgentAccount()
+      setNewChat(false)
+      setSelectedID(threadID)
+      setDraft("")
+      setSendError(null)
+    },
+    [effectiveSelectedID, resetAgentAccount],
+  )
 
   return (
     <div className="flex h-[calc(100vh-6.5rem)] min-h-[560px] flex-col gap-4">
@@ -403,6 +430,8 @@ export default function AgentChatPage() {
             onChange={setDraft}
             onSubmit={() => void handleSend()}
             isStreaming={isStreaming}
+            agentAccount={agentAccount}
+            onAgentAccountChange={setAgentAccount}
             disabled={
               isCreatingThread || (!effectiveSelectedID && !canCreateThread)
             }

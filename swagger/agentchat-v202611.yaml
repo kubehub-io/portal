@@ -71,20 +71,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '404':
-          description: Cluster not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '502':
-          description: Failed to retrieve cluster connection details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
         '500':
-          $ref: '#/components/responses/StoreError'
+          description: Internal cluster resolution or persistence error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /apis/agentchat-v202611/threads/{threadID}:
     parameters:
       - $ref: '#/components/parameters/ThreadID'
@@ -134,6 +126,11 @@ paths:
         Appends the user message and starts an agent run. The response is a
         server-sent event stream. Tokens are emitted as they are generated;
         the stream ends with a `done` event.
+
+        Before the run starts, the Chat API reconciles the agent sandbox
+        resources and mints a token for `agentServiceAccount` using the
+        caller's bearer token. The agent service is called with that service
+        account token, not with the caller's token.
       operationId: sendMessage
       requestBody:
         required: true
@@ -143,6 +140,7 @@ paths:
               $ref: '#/components/schemas/SendMessageRequest'
             example:
               content: Why is my application pod restarting?
+              agentServiceAccount: agent-sandbox/default-chat-agent-sa
       responses:
         '200':
           description: Server-sent agent response stream
@@ -174,6 +172,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -220,6 +220,14 @@ components:
         content:
           type: string
           minLength: 1
+        agentServiceAccount:
+          type: string
+          description: |
+            Service account the agent runs as, in `namespace/name` form. The
+            Chat API reconciles the sandbox runtime and RBAC for it, then
+            exchanges the caller's token for a token of this service account.
+            Defaults to `agent-sandbox/default-chat-agent-sa` when omitted.
+          example: agent-sandbox/default-chat-agent-sa
     Thread:
       type: object
       required: [id, created_at, updated_at]
@@ -273,6 +281,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     Unauthorized:
       description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: The caller cannot provision the sandbox resources or mint the agent service account token
       content:
         application/json:
           schema:
