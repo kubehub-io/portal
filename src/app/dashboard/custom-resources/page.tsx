@@ -307,20 +307,34 @@ export default function CustomResourcesPage() {
     if (!selectedType) return []
 
     const cols: ColumnDef[] = []
+    const columnKeys = new Set<string>()
+    const addColumn = (column: ColumnDef) => {
+      if (columnKeys.has(column.key)) return
+      columnKeys.add(column.key)
+      cols.push(column)
+    }
 
-    cols.push({ key: "metadata.name", label: "Name" })
+    addColumn({ key: "metadata.name", label: "Name" })
 
     if (selectedType.namespaced) {
-      cols.push({ key: "metadata.namespace", label: "Namespace" })
+      addColumn({ key: "metadata.namespace", label: "Namespace" })
     }
 
     const printerColumns = crdColumnMap[selectedType.kind]
     if (printerColumns) {
       for (const col of printerColumns) {
         const cleanPath = col.jsonPath.replace(/^\./, "")
-        if (cleanPath === "metadata.name" || cleanPath === "metadata.namespace") continue
+        // These columns are provided by this page. CRDs commonly define an
+        // additional printer column for creationTimestamp (usually "Age"),
+        // which must not create a second column with the same key.
+        if (
+          cleanPath === "metadata.name" ||
+          cleanPath === "metadata.namespace" ||
+          cleanPath === "metadata.labels" ||
+          cleanPath === "metadata.creationTimestamp"
+        ) continue
 
-        cols.push({
+        addColumn({
           key: cleanPath,
           label: col.name,
           render: (value: unknown) => {
@@ -334,7 +348,7 @@ export default function CustomResourcesPage() {
       }
     }
 
-    cols.push({
+    addColumn({
       key: "metadata.labels",
       label: "Labels",
       render: (value: unknown) => {
@@ -362,7 +376,7 @@ export default function CustomResourcesPage() {
       },
     })
 
-    cols.push({ key: "metadata.creationTimestamp", label: "Age" })
+    addColumn({ key: "metadata.creationTimestamp", label: "Age" })
 
     return cols
   }, [selectedType, crdColumnMap])
