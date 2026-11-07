@@ -35,7 +35,7 @@ const SERVICE_ACCOUNTS_DESC = { version: "v1", resource: "serviceaccounts" } as 
 const DEFAULT_TOOLTIP =
   "Chat agent will use this readonly account to troubleshoot/operate your cluster, no access to secrets."
 const CUSTOM_TOOLTIP =
-  "Chat Agent will use this account to troubleshoot/operate your cluster!"
+  "Chat Agent will use this account to troubleshoot/operate your cluster! Make sure you have audit its permissions."
 
 interface AgentAccountPickerProps {
   value: AgentServiceAccount

@@ -1,12 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { cn } from "@/lib/utils"
 import { useQueryClient } from "@tanstack/react-query"
 import {
+  BookOpen,
   Bot,
   Loader2,
   MessageSquare,
-  MessageSquarePlus,
+  PanelLeftOpen,
   RefreshCw,
   Sparkles,
 } from "lucide-react"
@@ -97,6 +99,7 @@ export default function AgentChatPage() {
   const [agentAccount, setAgentAccount] = useState<AgentServiceAccount>(
     defaultAgentServiceAccount,
   )
+  const [conversationListCollapsed, setConversationListCollapsed] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
@@ -298,39 +301,61 @@ export default function AgentChatPage() {
 
   return (
     <div className="flex h-[calc(100vh-6.5rem)] min-h-[560px] flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Agent chat</h2>
           <p className="text-muted-foreground">
             Troubleshoot your clusters with the KubeHub support agent.
           </p>
         </div>
-        <Button
-          onClick={startNewChat}
-          disabled={isStreaming || isCreatingThread || !canCreateThread}
-          title={canCreateThread ? undefined : "Select a cluster to start a new chat"}
+        <a
+          href="https://docs.kubehub.io/how_to_use_chat"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm text-primary underline underline-offset-2"
         >
-          <MessageSquarePlus className="h-4 w-4" />
-          New chat
-        </Button>
+          <BookOpen className="h-4 w-4" />
+          Chat documentation
+        </a>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
-        <aside className="h-44 shrink-0 overflow-hidden rounded-xl border bg-card shadow-sm md:h-auto md:w-72">
-          <ChatThreadList
-            threads={threads}
-            selectedID={effectiveSelectedID}
-            onSelect={selectThread}
-            onNew={startNewChat}
-            canCreate={canCreateThread}
-            isLoading={threadsQuery.isLoading}
-            isError={threadsQuery.isError}
-            errorMessage={
-              threadsQuery.error instanceof Error ? threadsQuery.error.message : undefined
-            }
-            onRetry={() => void threadsQuery.refetch()}
-            now={now}
-          />
+        <aside
+          className={cn(
+            "flex min-h-0 shrink-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm",
+            conversationListCollapsed
+              ? "h-10 w-full md:h-auto md:w-10"
+              : "h-44 md:h-auto md:w-72",
+          )}
+        >
+          {conversationListCollapsed ? (
+            <Button
+              variant="ghost"
+              className="h-full w-full rounded-none"
+              onClick={() => setConversationListCollapsed(false)}
+              disabled={isStreaming || isCreatingThread}
+              title="Expand conversation list"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+              <span className="sr-only">Expand conversation list</span>
+            </Button>
+          ) : (
+            <ChatThreadList
+              threads={threads}
+              selectedID={effectiveSelectedID}
+              onSelect={selectThread}
+              onNew={startNewChat}
+              onCollapse={() => setConversationListCollapsed(true)}
+              canCreate={canCreateThread}
+              isLoading={threadsQuery.isLoading}
+              isError={threadsQuery.isError}
+              errorMessage={
+                threadsQuery.error instanceof Error ? threadsQuery.error.message : undefined
+              }
+              onRetry={() => void threadsQuery.refetch()}
+              now={now}
+            />
+          )}
         </aside>
 
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">

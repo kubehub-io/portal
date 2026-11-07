@@ -1,6 +1,6 @@
 "use client"
 
-import { Loader2, MessageSquare, Plus, RefreshCw } from "lucide-react"
+import { Loader2, MessageSquare, PanelLeftClose, Plus, RefreshCw } from "lucide-react"
 import type { ChatThread } from "@/lib/api/agent-chat"
 import { formatRelativeTime, threadTitle } from "@/lib/chat"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,7 @@ interface ChatThreadListProps {
   selectedID: string | null
   onSelect: (threadID: string) => void
   onNew: () => void
+  onCollapse: () => void
   canCreate?: boolean
   isLoading: boolean
   isError: boolean
@@ -24,6 +25,7 @@ export function ChatThreadList({
   selectedID,
   onSelect,
   onNew,
+  onCollapse,
   canCreate = true,
   isLoading,
   isError,
@@ -38,18 +40,28 @@ export function ChatThreadList({
           <MessageSquare className="h-4 w-4 text-muted-foreground" />
           Conversations
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
+          <Button
+            variant="ghost"
+            size="icon"
           className="h-7 w-7"
           onClick={onNew}
           disabled={!canCreate}
           title={canCreate ? "New chat" : "Select a cluster to start a new chat"}
         >
           <Plus className="h-4 w-4" />
-          <span className="sr-only">New chat</span>
-        </Button>
-      </div>
+            <span className="sr-only">New chat</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onCollapse}
+            title="Collapse conversation list"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+            <span className="sr-only">Collapse conversation list</span>
+          </Button>
+        </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {isLoading ? (

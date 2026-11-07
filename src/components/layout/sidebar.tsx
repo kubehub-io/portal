@@ -60,12 +60,6 @@ export function Sidebar() {
 
   const groups: NavGroup[] = [
     {
-      label: "Assistant",
-      items: [
-        { label: "Chat", href: "/chat", icon: <MessageSquare className="h-4 w-4" /> },
-      ],
-    },
-    {
       label: "Resources",
       items: [
         { label: "Clusters", href: "/dashboard/clusters", icon: <Server className="h-4 w-4" /> },
@@ -74,6 +68,12 @@ export function Sidebar() {
         { label: "Shell", href: "/dashboard/shell", icon: <Terminal className="h-4 w-4" /> },
         { label: "Apply", href: "/dashboard/apply", icon: <FilePlus className="h-4 w-4" /> },
         { label: "Custom Resources", href: "/dashboard/custom-resources", icon: <Boxes className="h-4 w-4" /> },
+      ],
+    },
+    {
+      label: "Assistant",
+      items: [
+        { label: "Chat", href: "/chat", icon: <MessageSquare className="h-4 w-4" /> },
       ],
     },
     {
