@@ -7,6 +7,7 @@ import { useState } from "react"
 import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
 import { type ResourceDescriptor } from "@/lib/api/k8s-client"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 
 const SERVICE_DESC: ResourceDescriptor = { version: "v1", resource: "services" }
 
@@ -39,12 +40,7 @@ export default function ServicesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Services</h2>
-        <p className="text-muted-foreground">
-          {activeCluster ? `${activeCluster.metadata.name} / services` : "No active cluster"}
-        </p>
-      </div>
+      <ResourcePageHeader title="Services" subtitle={activeCluster ? `${activeCluster.metadata.name} / services` : "No active cluster"} />
       <DataTable
         columns={columns}
         data={items}

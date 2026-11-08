@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { useNodeJoinToken } from "@/hooks/use-node-join-token"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import { Plus, Info, Loader2, Trash2, AlertTriangle, Clock, Copy, Check } from "lucide-react"
 
 interface MergedNode {
@@ -476,21 +477,21 @@ sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Nodes</h2>
-          <p className="text-muted-foreground flex items-center gap-2">
+      <ResourcePageHeader
+        title="Nodes"
+        subtitle={
+          <span className="flex items-center gap-2">
             {activeCluster ? `${activeCluster.metadata.name} / nodes` : "No active cluster"}
             {isOffline && <Badge variant="warning">Offline</Badge>}
-          </p>
-        </div>
-        {activeCluster && (
+          </span>
+        }
+        actions={activeCluster ? (
           <Button onClick={() => isOffline ? setClusterStoppedOpen(true) : setAddOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Node
           </Button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {isOffline && (
         <div className="flex items-center gap-2 rounded-md border border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-200">

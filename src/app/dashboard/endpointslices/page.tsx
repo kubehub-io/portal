@@ -3,6 +3,7 @@
 import { DataTable } from "@/components/resources/data-table"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 
 export default function EndpointSlicesPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
@@ -29,12 +30,7 @@ export default function EndpointSlicesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">EndpointSlices</h2>
-        <p className="text-muted-foreground">
-          {activeCluster ? `${activeCluster.metadata.name} / endpointslices` : "No active cluster"}
-        </p>
-      </div>
+      <ResourcePageHeader title="EndpointSlices" subtitle={activeCluster ? `${activeCluster.metadata.name} / endpointslices` : "No active cluster"} />
       <DataTable columns={columns} data={items} isLoading={isLoading} error={error} namespace={namespace} onNamespaceChange={setNamespace} namespaces={namespaces} />
     </div>
   )
