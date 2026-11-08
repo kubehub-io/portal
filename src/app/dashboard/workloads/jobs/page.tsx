@@ -3,6 +3,7 @@
 import { DataTable } from "@/components/resources/data-table"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 
 function makeWorkloadPage(label: string, resource: string, group: string, columns: { key: string; label: string }[]) {
   return function WorkloadPage() {
@@ -18,12 +19,10 @@ function makeWorkloadPage(label: string, resource: string, group: string, column
     }
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">{label}</h2>
-          <p className="text-muted-foreground">
-            {activeCluster ? `${activeCluster.metadata.name} / ${resource}` : "No active cluster"}
-          </p>
-        </div>
+        <ResourcePageHeader
+          title={label}
+          subtitle={activeCluster ? `${activeCluster.metadata.name} / ${resource}` : "No active cluster"}
+        />
         <DataTable columns={columns} data={items} isLoading={isLoading} error={error} namespace={namespace} onNamespaceChange={setNamespace} namespaces={namespaces} />
       </div>
     )

@@ -7,6 +7,7 @@ import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/re
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { type ResourceDescriptor } from "@/lib/api/k8s-client"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 
 export interface WorkloadPageOptions {
   desc: ResourceDescriptor
@@ -43,12 +44,10 @@ export function makeWorkloadPage(
 
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">{label}</h2>
-          <p className="text-muted-foreground">
-            {activeCluster ? `${activeCluster.metadata.name} / ${resource}` : "No active cluster"}
-          </p>
-        </div>
+        <ResourcePageHeader
+          title={label}
+          subtitle={activeCluster ? `${activeCluster.metadata.name} / ${resource}` : "No active cluster"}
+        />
         <DataTable
           columns={columns}
           data={items}

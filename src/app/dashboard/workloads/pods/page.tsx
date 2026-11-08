@@ -6,6 +6,7 @@ import { PodExecDialog } from "@/components/resources/pod-exec-dialog"
 import { Button } from "@/components/ui/button"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import { deleteK8sResource } from "@/lib/api/k8s-client"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
@@ -72,12 +73,7 @@ export default function PodsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Pods</h2>
-        <p className="text-muted-foreground">
-          {activeCluster ? `${activeCluster.metadata.name} / pods` : "No active cluster"}
-        </p>
-      </div>
+      <ResourcePageHeader title="Pods" subtitle={activeCluster ? `${activeCluster.metadata.name} / pods` : "No active cluster"} />
       <DataTable
         columns={columns}
         data={items}

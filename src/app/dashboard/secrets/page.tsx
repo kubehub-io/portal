@@ -5,6 +5,7 @@ import { DeleteResourceButton } from "@/components/resources/delete-resource-but
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { type ResourceDescriptor } from "@/lib/api/k8s-client"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 
 const SECRET_DESC: ResourceDescriptor = { version: "v1", resource: "secrets" }
 
@@ -41,12 +42,7 @@ export default function SecretsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Secrets</h2>
-        <p className="text-muted-foreground">
-          {activeCluster ? `${activeCluster.metadata.name} / secrets` : "No active cluster"}
-        </p>
-      </div>
+      <ResourcePageHeader title="Secrets" subtitle={activeCluster ? `${activeCluster.metadata.name} / secrets` : "No active cluster"} />
       <DataTable
         columns={columns}
         data={items}

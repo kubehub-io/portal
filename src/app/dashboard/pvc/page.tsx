@@ -3,6 +3,7 @@
 import { DataTable, StatusBadge } from "@/components/resources/data-table"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 
 export default function PVCPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
@@ -31,12 +32,7 @@ export default function PVCPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">PersistentVolumeClaims</h2>
-        <p className="text-muted-foreground">
-          {activeCluster ? `${activeCluster.metadata.name} / persistentvolumeclaims` : "No active cluster"}
-        </p>
-      </div>
+      <ResourcePageHeader title="PersistentVolumeClaims" subtitle={activeCluster ? `${activeCluster.metadata.name} / persistentvolumeclaims` : "No active cluster"} />
       <DataTable columns={columns} data={items} isLoading={isLoading} error={error} namespace={namespace} onNamespaceChange={setNamespace} namespaces={namespaces} />
     </div>
   )

@@ -7,6 +7,7 @@ import { useState } from "react"
 import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
 import { type ResourceDescriptor } from "@/lib/api/k8s-client"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 
 const CONFIGMAP_DESC: ResourceDescriptor = { version: "v1", resource: "configmaps" }
 
@@ -40,12 +41,10 @@ export default function ConfigMapsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">ConfigMaps</h2>
-        <p className="text-muted-foreground">
-          {activeCluster ? `${activeCluster.metadata.name} / configmaps` : "No active cluster"}
-        </p>
-      </div>
+      <ResourcePageHeader
+        title="ConfigMaps"
+        subtitle={activeCluster ? `${activeCluster.metadata.name} / configmaps` : "No active cluster"}
+      />
       <DataTable
         columns={columns}
         data={items}

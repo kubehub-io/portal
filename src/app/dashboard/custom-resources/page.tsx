@@ -6,6 +6,7 @@ import { useAPIDiscovery } from "@/hooks/use-api-discovery"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { DataTable, type ColumnDef } from "@/components/resources/data-table"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import {
   ResourceYamlEditDialog,
   EditResourceButton,
@@ -407,14 +408,14 @@ export default function CustomResourcesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Custom Resources</h2>
-        <p className="text-muted-foreground">
-          {activeCluster
+      <ResourcePageHeader
+        title="Custom Resources"
+        subtitle={
+          activeCluster
             ? `${activeCluster.metadata.name} / custom resources`
-            : "No active cluster"}
-        </p>
-      </div>
+            : "No active cluster"
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
