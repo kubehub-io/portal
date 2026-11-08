@@ -222,6 +222,7 @@ export default function ApplyPage() {
           value={yamlInput}
           onChange={handleEditorChange}
           height="24rem"
+          resizable
         />
         {yamlError && (
           <p className="text-sm text-destructive">{yamlError}</p>
