@@ -6,8 +6,9 @@ import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import { type ResourceDescriptor } from "@/lib/api/k8s-client"
-import { CheckCircle, XCircle, BookOpen } from "lucide-react"
+import { CheckCircle, XCircle } from "lucide-react"
 
 interface HubHttpRouteBackendRef {
   name?: string
@@ -140,23 +141,11 @@ export default function HubHttpRoutesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">HubHttpRoutes</h2>
-          <p className="text-muted-foreground">
-            {activeCluster ? `${activeCluster.metadata.name} / hubhttproutes` : "No active cluster"}
-          </p>
-        </div>
-        <a
-          href="https://docs.kubehub.io/use_hubhttproute/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-primary underline underline-offset-2"
-        >
-          <BookOpen className="h-4 w-4" />
-          Docs
-        </a>
-      </div>
+      <ResourcePageHeader
+        title="HubHttpRoutes"
+        subtitle={activeCluster ? `${activeCluster.metadata.name} / hubhttproutes` : "No active cluster"}
+        docsHref="https://docs.kubehub.io/use_hubhttproute/"
+      />
       <DataTable
         columns={columns}
         data={items}
