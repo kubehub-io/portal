@@ -114,7 +114,6 @@ export async function* parseSSEStream(
     // Process a final line without a trailing newline.
     if (buffer.length > 0) {
       const finalLine = buffer.endsWith("\r") ? buffer.slice(0, -1) : buffer
-      buffer = ""
       const event = processLine(finalLine)
       if (event) yield event
     }
