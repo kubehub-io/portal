@@ -8,6 +8,7 @@ import { getMockCerts } from "./mock/tls.ts"
 import { oidcHandler } from "./mock/oidc.ts"
 import { controlPlaneHandler } from "./mock/control-plane.ts"
 import { monitoringHandler } from "./mock/monitoring.ts"
+import { agentChatHandler } from "./mock/agent-chat.ts"
 import { k8sHandler } from "./mock/k8s.ts"
 import { MOCK_K8S_API_URL } from "./mock/data.ts"
 import { handleError } from "./mock/util.ts"
@@ -74,14 +75,19 @@ function startServer(name: string, scheme: string, port: number, handler: Handle
 }
 
 const MONITORING_API_BASE = "/apis/monitoring-v202609"
+const AGENT_CHAT_API_BASE = "/apis/agentchat-v202611"
 
-/** The monitoring API shares the control plane port, so dispatch on the path prefix. */
-function withMonitoringApi(base: Handler, monitoring: Handler): Handler {
+/** Monitoring and agent chat share the control plane port, so dispatch on path prefix. */
+function withApiRoutes(base: Handler, monitoring: Handler, agentChat: Handler): Handler {
   return (req, res) => {
     const path = (req.url ?? "/").split("?")[0]
-    return (path === MONITORING_API_BASE || path.startsWith(`${MONITORING_API_BASE}/`))
-      ? monitoring(req, res)
-      : base(req, res)
+    if (path === MONITORING_API_BASE || path.startsWith(`${MONITORING_API_BASE}/`)) {
+      return monitoring(req, res)
+    }
+    if (path === AGENT_CHAT_API_BASE || path.startsWith(`${AGENT_CHAT_API_BASE}/`)) {
+      return agentChat(req, res)
+    }
+    return base(req, res)
   }
 }
 
@@ -97,7 +103,7 @@ const servers: (http.Server | https.Server)[] = [
     "control-plane api",
     api.protocol,
     defaultPort(api.protocol, api),
-    withMonitoringApi(controlPlaneHandler(), monitoringHandler()),
+    withApiRoutes(controlPlaneHandler(), monitoringHandler(), agentChatHandler()),
   ),
   startServer("k8s api", k8s.protocol, defaultPort(k8s.protocol, k8s), k8sHandler()),
 ]

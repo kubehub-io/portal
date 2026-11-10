@@ -33,6 +33,7 @@ import {
   Terminal,
   FilePlus,
   Route,
+  MessageSquare,
 } from "lucide-react"
 import { useState } from "react"
 
@@ -67,6 +68,12 @@ export function Sidebar() {
         { label: "Shell", href: "/dashboard/shell", icon: <Terminal className="h-4 w-4" /> },
         { label: "Apply", href: "/dashboard/apply", icon: <FilePlus className="h-4 w-4" /> },
         { label: "Custom Resources", href: "/dashboard/custom-resources", icon: <Boxes className="h-4 w-4" /> },
+      ],
+    },
+    {
+      label: "Assistant",
+      items: [
+        { label: "Chat", href: "/chat", icon: <MessageSquare className="h-4 w-4" /> },
       ],
     },
     {
@@ -192,7 +199,7 @@ export function Sidebar() {
             )}
             {group.items.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-              const allowedWhenStopped = ["/dashboard/clusters", "/dashboard/nodes", "/dashboard/appingresses"]
+              const allowedWhenStopped = ["/dashboard/clusters", "/dashboard/nodes", "/dashboard/appingresses", "/chat"]
               const isDisabled = (item.href === "/appingresses" && !managedIngress) || (isClusterStopped && !allowedWhenStopped.includes(item.href))
               return (
                 <Button
@@ -264,7 +271,7 @@ export function Sidebar() {
                   </div>
                   {group.items.map((item) => {
                     const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-                    const allowedWhenStopped = ["/dashboard/clusters", "/dashboard/nodes", "/dashboard/appingresses"]
+                    const allowedWhenStopped = ["/dashboard/clusters", "/dashboard/nodes", "/dashboard/appingresses", "/chat"]
                     const isDisabled = (item.href === "/appingresses" && !managedIngress) || (isClusterStopped && !allowedWhenStopped.includes(item.href))
                     return (
                       <Button
