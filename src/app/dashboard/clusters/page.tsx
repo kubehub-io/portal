@@ -46,7 +46,6 @@ export default function ClustersPage() {
   const downloadKubeconfig = useDownloadKubeconfig()
   const [createOpen, setCreateOpen] = useState(false)
   const [editCluster, setEditCluster] = useState<string | null>(null)
-  const [editAppIngressCount, setEditAppIngressCount] = useState(0)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState("")
   const [deleteForce, setDeleteForce] = useState(false)
@@ -182,10 +181,7 @@ export default function ClustersPage() {
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" disabled={state === "Reconciling"} onClick={async () => {
-                          setEditCluster(cluster.metadata.name)
-                          setEditAppIngressCount(await fetchAppIngressCount(cluster.metadata.name))
-                        }}>
+                        <Button variant="ghost" size="icon" disabled={state === "Reconciling"} onClick={() => setEditCluster(cluster.metadata.name)}>
                           <Settings className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
@@ -270,7 +266,6 @@ export default function ClustersPage() {
           open={!!editCluster}
           onOpenChange={(o) => { if (!o) setEditCluster(null) }}
           cluster={clusters.find((c) => c.metadata.name === editCluster)}
-          appIngressCount={editAppIngressCount}
         />
       )}
 

@@ -1,8 +1,11 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { useClusters } from "@/hooks/use-clusters"
-import { Server, Activity, HardDrive, Container } from "lucide-react"
+import { Server, Activity, HardDrive, Container, Boxes } from "lucide-react"
+import Link from "next/link"
+import { CUSTOM_RESOURCES_PATH } from "@/lib/navigation"
 
 export default function DashboardPage() {
   const { clusters, activeCluster } = useClusters()
@@ -53,9 +56,15 @@ export default function DashboardPage() {
             <Container className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-muted-foreground">
-              Use the sidebar to browse resources
-            </div>
+            <p className="mb-2 text-sm text-muted-foreground">
+              Pin any resource type — native or CRD — from Customize tabs, or open the generic viewer.
+            </p>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={CUSTOM_RESOURCES_PATH}>
+                <Boxes className="mr-2 h-4 w-4" />
+                Browse Resources
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

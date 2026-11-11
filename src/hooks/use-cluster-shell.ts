@@ -149,6 +149,14 @@ export async function updateShellPodToken(
 
   return new Promise((resolve, reject) => {
     let output = ""
+    let settled = false
+    const finish = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      if (error) reject(error)
+      else resolve()
+    }
 
     ws.onmessage = (event) => {
       const data = new Uint8Array(event.data as ArrayBuffer)
@@ -157,25 +165,44 @@ export async function updateShellPodToken(
       if (channel >= 1 && channel <= 3) {
         output += text
       }
+      if (channel === 3) {
+        try {
+          const status = JSON.parse(text) as { status?: string; message?: string }
+          if (status.status === "Success") {
+            finish()
+            ws.close()
+            return
+          }
+          if (status.status === "Failure") {
+            finish(new Error(status.message || "Exec command failed"))
+            ws.close()
+            return
+          }
+        } catch {
+          // Some API/proxy versions send a plain-text status frame.
+        }
+      }
+      if (output.includes("token: OK")) {
+        finish()
+        ws.close()
+      }
     }
 
     const timeout = setTimeout(() => {
       ws.close()
-      reject(new Error("Timeout updating token in pod"))
+      finish(new Error("Timeout updating token in pod"))
     }, 15_000)
 
     ws.onclose = () => {
-      clearTimeout(timeout)
       if (output.includes("token: OK")) {
-        resolve()
+        finish()
       } else {
-        reject(new Error(output.trim() || "Unknown error updating token"))
+        finish(new Error(output.trim() || "Unknown error updating token"))
       }
     }
 
     ws.onerror = () => {
-      clearTimeout(timeout)
-      reject(new Error("WebSocket error while updating token"))
+      finish(new Error("WebSocket error while updating token"))
     }
   })
 }
@@ -231,12 +258,16 @@ export function useClusterShell(nodeName?: string) {
       const nodeUrl = `${host}/api/v1/nodes`
 
       let podReady = false
+      let podAlreadyRunning = false
+      let checkedPodNodeName: string | undefined
       while (!podReady) {
         if (abortRef.current) return
 
         const [getRes, nodeRes] = await Promise.all([
-          fetch(podUrl, { headers }),
-          fetch(nodeUrl, { headers }),
+          // Pod phase is deliberately polled; never allow the browser or an
+          // intermediary cache to return the first Pending response forever.
+          fetch(`${podUrl}?shellCheck=${Date.now()}`, { headers, cache: "no-store" }),
+          fetch(nodeUrl, { headers, cache: "no-store" }),
         ])
 
         if (getRes.status === 404) {
@@ -266,6 +297,7 @@ export function useClusterShell(nodeName?: string) {
           const existing = (await getRes.json()) as {
             metadata?: { annotations?: Record<string, string> }
             spec?: { nodeName?: string }
+            status?: { phase?: string }
           }
           const existingVersion = existing?.metadata?.annotations?.["shell.kubehub.io/spec-version"]
           const existingNodeName = existing?.spec?.nodeName
@@ -275,6 +307,11 @@ export function useClusterShell(nodeName?: string) {
 
           if (versionMatch && nodeMatch) {
             podReady = true
+            checkedPodNodeName = existingNodeName
+            // Do not throw away the status from the check we just made. In
+            // particular, an already-running shell pod should go straight to
+            // credential setup instead of waiting for a second polling loop.
+            podAlreadyRunning = existing.status?.phase === "Running"
           } else {
             // Delete outdated pod and loop back to create
             setState((s) => ({ ...s, phase: "recreating" }))
@@ -286,7 +323,7 @@ export function useClusterShell(nodeName?: string) {
             // Wait for actual deletion
             for (;;) {
               if (abortRef.current) return
-              const checkRes = await fetch(podUrl, { headers })
+              const checkRes = await fetch(podUrl, { headers, cache: "no-store" })
               if (checkRes.status === 404) break
               await new Promise((r) => setTimeout(r, 1000))
             }
@@ -297,19 +334,35 @@ export function useClusterShell(nodeName?: string) {
       // Step 2: Wait for pod to be Running
       setState((s) => ({ ...s, phase: "waiting" }))
 
-      const running = await waitForPodRunning(dns, namespace, podName, token, () => abortRef.current)
+      const running =
+        podAlreadyRunning ||
+        (await waitForPodRunning(dns, namespace, podName, token, () => abortRef.current))
       if (!running) return
 
       // Fetch node name for better error messages and display
-      const pnn = await getPodNodeName(dns, namespace, podName, token)
+       // The initial pod check already contains spec.nodeName for an existing
+       // pod. Reuse it so credential injection cannot be blocked by a second
+       // status GET before the exec WebSocket is opened.
+       const pnn = checkedPodNodeName ?? await getPodNodeName(dns, namespace, podName, token)
       setPodNodeName(pnn ?? null)
 
-      // Step 3: Write CA cert, namespace, and access token into the pod
-      setState((s) => ({ ...s, phase: "writing-token" }))
-      await writeFilesToPod(dns, namespace, podName, token, pnn, () => abortRef.current)
+       // Step 3: Write CA cert, namespace, and access token into the pod.
+       // This is a convenience operation and must not block the interactive
+       // shell. Some API proxies keep exec WebSockets open after the command
+       // completes, so waiting here can leave the whole panel stuck forever.
+       setState((s) => ({ ...s, phase: "ready", error: null }))
+       void writeFilesToPod(dns, namespace, podName, token, pnn, () => abortRef.current).catch((err) => {
+         if (abortRef.current) return
+         setState((s) => ({
+           ...s,
+           phase: "ready",
+           error: `Shell connected, but credentials could not be injected: ${
+             err instanceof Error ? err.message : String(err)
+           }`,
+         }))
+       })
 
-      if (abortRef.current) return
-      setState((s) => ({ ...s, phase: "ready" }))
+       if (abortRef.current) return
     } catch (err) {
       if (abortRef.current) return
       const msg = err instanceof Error ? err.message : String(err)
@@ -364,7 +417,18 @@ async function waitForPodRunning(
   while (Date.now() < deadline) {
     if (isAborted()) return false
 
-    const res = await fetch(`${host}/api/v1/namespaces/${namespace}/pods/${podName}`, { headers })
+    // `no-store` prevents browser caching, while the nonce also bypasses
+    // caches in front of the Kubernetes API. Without both, a cached Pending
+    // response can make this loop appear to stop polling entirely.
+    const url = `${host}/api/v1/namespaces/${namespace}/pods/${podName}?shellPoll=${Date.now()}`
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 15_000)
+    const res = await fetch(url, {
+      headers,
+      cache: "no-store",
+      signal: controller.signal,
+    })
+    window.clearTimeout(timeout)
     if (!res.ok) throw new Error(`Failed to get pod status: ${res.status}`)
 
     const pod = (await res.json()) as { status?: { phase?: string } }
@@ -383,9 +447,14 @@ async function waitForPodRunning(
 
 async function getPodNodeName(dns: string, namespace: string, podName: string, token: string): Promise<string | undefined> {
   const host = getK8sHost(dns)
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 15_000)
   const res = await fetch(`${host}/api/v1/namespaces/${namespace}/pods/${podName}`, {
     headers: { Authorization: `Bearer ${token}`, Host: dns },
+    cache: "no-store",
+    signal: controller.signal,
   })
+  window.clearTimeout(timeout)
   if (!res.ok) return undefined
   const pod = await res.json() as { spec?: { nodeName?: string } }
   return pod.spec?.nodeName
@@ -434,6 +503,14 @@ async function writeFilesToPod(
 
   return new Promise((resolve, reject) => {
     let output = ""
+    let settled = false
+    const finish = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      if (error) reject(error)
+      else resolve()
+    }
 
     ws.onmessage = (event) => {
       const data = new Uint8Array(event.data as ArrayBuffer)
@@ -442,27 +519,49 @@ async function writeFilesToPod(
       if (channel >= 1 && channel <= 3) {
         output += text
       }
+      if (channel === 3) {
+        try {
+          const status = JSON.parse(text) as { status?: string; message?: string }
+          if (status.status === "Success") {
+            finish()
+            ws.close()
+            return
+          }
+          if (status.status === "Failure") {
+            finish(new Error(formatError(status.message || "Exec command failed", nodeName)))
+            ws.close()
+            return
+          }
+        } catch {
+          // Some API/proxy versions send a plain-text status frame.
+        }
+      }
+      // The exec endpoint may keep the WebSocket open after the command has
+      // completed. The success marker is the command-level completion signal;
+      // do not wait forever for the server to close the stream.
+      if (output.includes("token: OK")) {
+        finish()
+        ws.close()
+      }
     }
 
     const timeout = setTimeout(() => {
       ws.close()
-      reject(new Error(formatError(output.trim() || "Timeout writing files to pod", nodeName)))
+      finish(new Error(formatError(output.trim() || "Timeout writing files to pod", nodeName)))
     }, 15_000)
 
     ws.onclose = () => {
-      clearTimeout(timeout)
-      if (!isAborted()) {
+      if (!settled && !isAborted()) {
         if (output.includes("token: OK")) {
-          resolve()
+          finish()
         } else {
-          reject(new Error(formatError(output.trim() || "Unknown error", nodeName)))
+          finish(new Error(formatError(output.trim() || "Unknown error", nodeName)))
         }
       }
     }
 
     ws.onerror = () => {
-      clearTimeout(timeout)
-      reject(new Error(formatError(output.trim() || "WebSocket error while writing files", nodeName)))
+      finish(new Error(formatError(output.trim() || "WebSocket error while writing files", nodeName)))
     }
   })
 }

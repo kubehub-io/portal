@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { DataTable } from "@/components/resources/data-table"
+import { HttpRouteRules } from "@/components/resources/http-route-details"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
@@ -108,33 +109,7 @@ export default function HubHttpRoutesPage() {
     {
       key: "spec.rules",
       label: "Backend",
-      render: (_v: unknown, item: Record<string, unknown>) => {
-        const r = item as unknown as HubHttpRoute
-        const lines: string[] = []
-        for (const rule of r.spec?.rules ?? []) {
-          const matches = rule.matches && rule.matches.length > 0 ? rule.matches : [{}]
-          const backends = rule.backendRefs && rule.backendRefs.length > 0 ? rule.backendRefs : []
-          for (const match of matches) {
-            const m = match as { path?: { value?: string } }
-            const path = m?.path?.value ?? "/"
-            if (backends.length === 0) {
-              lines.push(`${path} => -`)
-            } else {
-              for (const ref of backends) {
-                lines.push(`${path} => ${ref.name ?? "-"}${ref.port ? `:${ref.port}` : ""}`)
-              }
-            }
-          }
-        }
-        if (lines.length === 0) return <span className="text-xs text-muted-foreground">-</span>
-        return (
-          <div className="space-y-0.5">
-            {lines.map((line, i) => (
-              <div key={i} className="text-xs font-mono">{line}</div>
-            ))}
-          </div>
-        )
-      },
+      render: (_v: unknown, item: Record<string, unknown>) => <HttpRouteRules route={item} />,
     },
     { key: "metadata.creationTimestamp", label: "Age" },
   ]

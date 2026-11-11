@@ -1,11 +1,18 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { Suspense, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAPIDiscovery } from "@/hooks/use-api-discovery"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { DataTable, type ColumnDef } from "@/components/resources/data-table"
+import { HostnameList } from "@/components/resources/hostname-list"
+import {
+  HttpRouteConditions,
+  HttpRouteRules,
+} from "@/components/resources/http-route-details"
+import { ResourceTypeStar } from "@/components/resources/resource-type-star"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import {
   ResourceYamlEditDialog,
@@ -18,6 +25,14 @@ import {
   type ResourceDescriptor,
   type K8sResource,
 } from "@/lib/api/k8s-client"
+import {
+  buildResourceTypes,
+  resourceTypeGroupLabel,
+  type ResourceTypeEntry,
+} from "@/lib/resource-types"
+import { CUSTOM_RESOURCES_TYPE_PARAM } from "@/lib/navigation"
+import { hostnameColumnFor } from "@/lib/hostnames"
+import { isHttpRouteKind } from "@/lib/http-route"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -67,15 +82,6 @@ interface CRDResource extends K8sResource {
   }
 }
 
-interface ResourceType {
-  group: string
-  kind: string
-  plural: string
-  namespaced: boolean
-  version: string
-  label: string
-}
-
 function formatAge(timestamp: string | undefined): string {
   if (!timestamp) return "-"
   const d = new Date(timestamp)
@@ -96,7 +102,7 @@ function ResourceTypeCombobox({
   value,
   onSelect,
 }: {
-  types: ResourceType[]
+  types: ResourceTypeEntry[]
   value: string
   onSelect: (value: string) => void
 }) {
@@ -104,39 +110,41 @@ function ResourceTypeCombobox({
   const [search, setSearch] = useState("")
 
   const groupedTypes = useMemo(() => {
-    const filtered = search
-      ? types.filter((t) => {
-          const q = search.toLowerCase()
-          return (
-            t.kind.toLowerCase().includes(q) ||
-            t.group.toLowerCase().includes(q) ||
-            t.label.toLowerCase().includes(q)
-          )
-        })
-      : types
+    const q = search.trim().toLowerCase()
+    const filtered = types.filter((t) => {
+      if (!q) return true
+      return (
+        t.kind.toLowerCase().includes(q) ||
+        t.group.toLowerCase().includes(q) ||
+        t.plural.toLowerCase().includes(q) ||
+        t.key.toLowerCase().includes(q)
+      )
+    })
 
-    const groups: Record<string, ResourceType[]> = {}
+    const groups: Record<string, ResourceTypeEntry[]> = {}
     for (const t of filtered) {
-      const group = t.group || "core"
+      const group = resourceTypeGroupLabel(t.group)
       if (!groups[group]) groups[group] = []
       groups[group].push(t)
     }
 
-    const sorted: [string, ResourceType[]][] = Object.entries(groups).sort(([a], [b]) =>
+    const sorted: [string, ResourceTypeEntry[]][] = Object.entries(groups).sort(([a], [b]) =>
       a.localeCompare(b),
     )
     return sorted
   }, [types, search])
 
-  const selected = types.find((t) => t.label === value)
+  const selected = types.find((t) => t.key === value)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" className="w-full justify-between">
           {selected ? (
-            <span>
-              <span className="text-muted-foreground">{selected.group || "core"}/</span>
+            <span className="truncate">
+              <span className="text-muted-foreground">
+                {resourceTypeGroupLabel(selected.group)}/{selected.version}/
+              </span>
               {selected.kind}
             </span>
           ) : (
@@ -165,13 +173,13 @@ function ResourceTypeCombobox({
                 </div>
                 {resources.map((t) => (
                   <button
-                    key={t.label}
+                    key={t.key}
                     className={cn(
                       "flex w-full items-center px-2 py-1.5 text-sm hover:bg-accent",
-                      value === t.label && "bg-accent",
+                      value === t.key && "bg-accent",
                     )}
                     onClick={() => {
-                      onSelect(t.label)
+                      onSelect(t.key)
                       setOpen(false)
                       setSearch("")
                     }}
@@ -179,10 +187,10 @@ function ResourceTypeCombobox({
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        value === t.label ? "opacity-100" : "opacity-0",
+                        value === t.key ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    {t.kind}
+                    <span className="truncate">{t.kind}</span>
                     <span className="ml-auto text-xs text-muted-foreground">
                       {t.version}
                     </span>
@@ -197,7 +205,9 @@ function ResourceTypeCombobox({
   )
 }
 
-export default function CustomResourcesPage() {
+function CustomResourcesContent() {
+  const searchParams = useSearchParams()
+  const requestedType = searchParams.get(CUSTOM_RESOURCES_TYPE_PARAM)
   const activeCluster = useClusterStore((s) => s.activeCluster)
   const namespace = useClusterStore((s) => s.activeNamespace)
   const setNamespace = useClusterStore((s) => s.setActiveNamespace)
@@ -222,33 +232,23 @@ export default function CustomResourcesPage() {
     [nsData],
   )
 
-  const resourceTypes = useMemo(() => {
-    if (!discovery) return []
-    const types: ResourceType[] = []
+  const resourceTypes = useMemo(() => buildResourceTypes(discovery), [discovery])
 
-    for (const group of discovery.groups) {
-      if (!group.resources) continue
-      for (const resource of group.resources) {
-        if (resource.name.includes("/")) continue
-        types.push({
-          group: group.name,
-          kind: resource.kind,
-          plural: resource.name,
-          namespaced: resource.namespaced,
-          version: resource.version ?? group.preferredVersion.version,
-          label: `${group.name}/${resource.kind}`,
-        })
-      }
-    }
+  // Deep links (All Resources, a pinned tab) preselect the requested type once
+  // discovery resolves. An explicit pick always wins over the query param, and an
+  // unknown key — e.g. after switching clusters — falls back to no selection.
+  const [pickedTypeKey, setPickedTypeKey] = useState<string | null>(null)
 
-    types.sort((a, b) => a.label.localeCompare(b.label))
-    return types
-  }, [discovery])
-
-  const [selectedTypeKey, setSelectedTypeKey] = useState("")
+  const selectedTypeKey = useMemo(() => {
+    const exists = (key: string | null): key is string =>
+      !!key && resourceTypes.some((t) => t.key === key)
+    if (exists(pickedTypeKey)) return pickedTypeKey
+    if (exists(requestedType)) return requestedType
+    return ""
+  }, [pickedTypeKey, requestedType, resourceTypes])
 
   const selectedType = useMemo(
-    () => resourceTypes.find((t) => t.label === selectedTypeKey) ?? null,
+    () => resourceTypes.find((t) => t.key === selectedTypeKey) ?? null,
     [resourceTypes, selectedTypeKey],
   )
 
@@ -321,6 +321,42 @@ export default function CustomResourcesPage() {
       addColumn({ key: "metadata.namespace", label: "Namespace" })
     }
 
+    // Gateway resources expose hostnames in fields the CRD printer columns render
+    // as plain strings. Show them as a multi-line, link-aware column instead.
+    const hostnameColumn = hostnameColumnFor(selectedType.group, selectedType.kind)
+    if (hostnameColumn) {
+      addColumn({
+        key: hostnameColumn.key,
+        label: hostnameColumn.label,
+        width: hostnameColumn.width,
+        render: (_value, item) => <HostnameList names={hostnameColumn.read(item)} />,
+      })
+    }
+
+    const routeKind = isHttpRouteKind(selectedType.kind)
+    if (routeKind) {
+      addColumn({
+        key: "__httpRouteConditions",
+        label: "Conditions",
+        width: "16rem",
+        render: (_value, item) => <HttpRouteConditions route={item} />,
+      })
+      addColumn({
+        key: "__httpRouteRules",
+        label: "Rules",
+        width: "22rem",
+        render: (_value, item) => <HttpRouteRules route={item} />,
+      })
+    }
+
+    // Printer columns already covered by the name/hostname/route columns above.
+    const providedLabels = new Set<string>()
+    if (hostnameColumn) providedLabels.add(hostnameColumn.label.toLowerCase())
+    if (routeKind) {
+      providedLabels.add("conditions")
+      providedLabels.add("rules")
+    }
+
     const printerColumns = crdColumnMap[selectedType.kind]
     if (printerColumns) {
       for (const col of printerColumns) {
@@ -334,6 +370,8 @@ export default function CustomResourcesPage() {
           cleanPath === "metadata.labels" ||
           cleanPath === "metadata.creationTimestamp"
         ) continue
+        // Avoid re-rendering the hostname/route columns the page already provides.
+        if (providedLabels.has(col.name.toLowerCase())) continue
 
         addColumn({
           key: cleanPath,
@@ -415,6 +453,7 @@ export default function CustomResourcesPage() {
             ? `${activeCluster.metadata.name} / custom resources`
             : "No active cluster"
         }
+        actions={selectedType && <ResourceTypeStar entry={selectedType} size="sm" />}
       />
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -429,7 +468,7 @@ export default function CustomResourcesPage() {
             <ResourceTypeCombobox
               types={resourceTypes}
               value={selectedTypeKey}
-              onSelect={setSelectedTypeKey}
+              onSelect={setPickedTypeKey}
             />
           )}
         </div>
@@ -577,5 +616,13 @@ export default function CustomResourcesPage() {
         </Dialog>
       )}
     </div>
+  )
+}
+
+export default function CustomResourcesPage() {
+  return (
+    <Suspense fallback={null}>
+      <CustomResourcesContent />
+    </Suspense>
   )
 }
