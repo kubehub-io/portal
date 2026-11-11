@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { Sidebar } from "@/components/layout/sidebar"
+import { WorkbenchBar, WorkbenchPanel } from "@/components/layout/workbench-dock"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
 import { SettingsFlyout } from "@/components/monitoring/settings-flyout"
@@ -91,7 +92,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SettingsFlyout />
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <main className="min-h-0 flex-1 overflow-auto p-6">{children}</main>
+          <WorkbenchPanel />
+        </div>
+        <WorkbenchBar />
       </div>
     </div>
   )

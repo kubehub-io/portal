@@ -3,9 +3,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useClusters } from "@/hooks/use-clusters"
-import { Server, Activity, HardDrive, Container, ListTree } from "lucide-react"
+import { Server, Activity, HardDrive, Container, Boxes } from "lucide-react"
 import Link from "next/link"
-import { ALL_RESOURCES_PATH } from "@/lib/navigation"
+import { CUSTOM_RESOURCES_PATH } from "@/lib/navigation"
 
 export default function DashboardPage() {
   const { clusters, activeCluster } = useClusters()
@@ -57,12 +57,12 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="mb-2 text-sm text-muted-foreground">
-              Browse every resource type the cluster serves, then pin the ones you use.
+              Pin any resource type — native or CRD — from Customize tabs, or open the generic viewer.
             </p>
             <Button variant="outline" size="sm" asChild>
-              <Link href={ALL_RESOURCES_PATH}>
-                <ListTree className="mr-2 h-4 w-4" />
-                All Resources
+              <Link href={CUSTOM_RESOURCES_PATH}>
+                <Boxes className="mr-2 h-4 w-4" />
+                Browse Resources
               </Link>
             </Button>
           </CardContent>

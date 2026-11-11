@@ -99,6 +99,29 @@ describe("resource nav store", () => {
     expect(store().hidden).toEqual(["secrets"])
   })
 
+  it("drops favorites for retired tabs but keeps pinned resource types", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        favorites: [
+          { id: "all-resources", href: "/dashboard/resources" },
+          { id: "appingresses", href: "/dashboard/appingresses" },
+          {
+            id: "crd:core/v1/Pod",
+            label: "Pod",
+            href: "/dashboard/custom-resources?type=core%2Fv1%2FPod",
+          },
+          { id: "pods", href: "/dashboard/workloads/pods" },
+        ],
+        hidden: [],
+      }),
+    )
+    useResourceNavStore.setState({ favorites: [], hidden: [], hydrated: false })
+    store().hydrate()
+
+    expect(store().favorites.map((f) => f.id)).toEqual(["crd:core/v1/Pod", "pods"])
+  })
+
   it("hydrates only once so later edits are not clobbered", () => {
     store().toggleFavorite(navItemToFavorite("pods")!)
     useResourceNavStore.setState({ hydrated: false })

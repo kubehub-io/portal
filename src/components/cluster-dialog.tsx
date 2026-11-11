@@ -31,17 +31,14 @@ interface ClusterDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   cluster?: Cluster
-  appIngressCount?: number
 }
 
-export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCount = 0 }: ClusterDialogProps) {
+export function ClusterDialog({ mode, open, onOpenChange, cluster }: ClusterDialogProps) {
   const createCluster = useCreateCluster()
   const queryClient = useQueryClient()
 
   const [name, setName] = useState("")
   const [region, setRegion] = useState("us-east-1")
-  const [ingressEnabled, setIngressEnabled] = useState(mode === "edit" && cluster ? cluster.spec.managedIngressProfile?.enabled !== false : false)
-  const [ingressEmail, setIngressEmail] = useState(mode === "edit" && cluster ? cluster.spec.managedIngressProfile?.email ?? "" : "")
   const [storageProfile, setStorageProfile] = useState(mode === "edit" && cluster ? cluster.spec.storageProfile?.backend ?? "none" : "none")
   const [monitoringEnabled, setMonitoringEnabled] = useState(mode === "edit" && cluster ? cluster.spec.monitoringProfile?.enabled === true : false)
   const [podCIDR, setPodCIDR] = useState(mode === "edit" && cluster ? cluster.spec.network?.podCIDR ?? "" : "")
@@ -78,7 +75,6 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
               kubeDNSServiceIP: kubeDNSServiceIP || undefined,
               cni,
             },
-            managedIngressProfile: { enabled: ingressEnabled, email: ingressEmail },
             storageProfile: { backend: storageProfile === "none" ? "" : storageProfile },
             managedControllerProfile: { enabledControllers },
           },
@@ -90,7 +86,6 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
           metadata: { name: cluster.metadata.name },
           spec: {
             ...current.spec,
-            managedIngressProfile: { enabled: ingressEnabled, email: ingressEmail },
             storageProfile: { backend: storageProfile === "none" ? "" : storageProfile },
             monitoringProfile: { enabled: monitoringEnabled },
             managedControllerProfile: { enabledControllers },
@@ -104,7 +99,6 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
     }
   }
 
-  const isIngressDisabled = mode === "edit" && appIngressCount > 0
   const isSubmitDisabled = mode === "create" ? createCluster.isPending || !name : false
   const isSubmitPending = mode === "create" ? createCluster.isPending : false
 
@@ -115,10 +109,9 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
           <DialogTitle>{mode === "create" ? "Create Cluster" : `Cluster Settings — ${cluster?.metadata.name}`}</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="general" className="mt-2">
-          <TabsList className={`grid w-full ${mode === "edit" ? "grid-cols-6" : "grid-cols-5"}`}>
+          <TabsList className={`grid w-full ${mode === "edit" ? "grid-cols-5" : "grid-cols-4"}`}>
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="network">Network</TabsTrigger>
-            <TabsTrigger value="ingress">AppIngress</TabsTrigger>
             <TabsTrigger value="storage">Storage</TabsTrigger>
             {mode === "edit" && <TabsTrigger value="monitoring">Monitoring</TabsTrigger>}
             <TabsTrigger value="controllers">Operators</TabsTrigger>
@@ -182,7 +175,6 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
                       <SelectItem value="flannel">Flannel</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">Managed ingress is only supported on Cilium.</p>
                 </div>
               </>
             ) : (
@@ -209,35 +201,6 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster, appIngressCou
                 </div>
               </>
             )}
-          </TabsContent>
-
-          <TabsContent value="ingress" className="space-y-4 pt-4">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="ingressEnabled"
-                checked={ingressEnabled}
-                onCheckedChange={(v) => setIngressEnabled(v === true)}
-                disabled={isIngressDisabled}
-              />
-              <Label htmlFor="ingressEnabled" className={`cursor-pointer text-sm ${isIngressDisabled ? "text-muted-foreground" : ""}`}>
-                Enable managed ingress
-              </Label>
-            </div>
-            {mode === "edit" && appIngressCount > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Cannot disable managed ingress while {appIngressCount} app ingress{appIngressCount !== 1 ? "es" : ""} exist.
-              </p>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="ingressEmail">LetsEncrypt Notification email</Label>
-              <Input
-                id="ingressEmail"
-                value={ingressEmail}
-                onChange={(e) => setIngressEmail(e.target.value)}
-                placeholder="email from login will be used"
-                type="email"
-              />
-            </div>
           </TabsContent>
 
           <TabsContent value="storage" className="space-y-4 pt-4">

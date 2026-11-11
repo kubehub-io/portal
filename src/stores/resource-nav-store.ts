@@ -53,6 +53,9 @@ function sanitizeFavorites(value: unknown): FavoriteResource[] {
   for (const entry of value) {
     const fav = entry as Partial<FavoriteResource>
     if (!fav || typeof fav.id !== "string" || typeof fav.href !== "string") continue
+    const isResourceType = fav.id.startsWith("crd:")
+    // Drop favorites for tabs that no longer exist (retired pages, renamed ids).
+    if (!isResourceType && !getNavItem(fav.id)) continue
     if (seen.has(fav.id)) continue
     seen.add(fav.id)
     result.push({

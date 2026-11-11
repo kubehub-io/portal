@@ -33,11 +33,16 @@ describe("navigation registry", () => {
     expect(getNavItemForPlural("widgets")).toBeUndefined()
   })
 
-  it("maps a nav id to a full /dashboard path so gating can match it", () => {
-    // Regression: gating used to compare against "/appingresses" while the href was
-    // "/dashboard/appingresses", so the managed-ingress gate never fired.
-    expect(getNavItem("appingresses")?.href).toBe("/dashboard/appingresses")
-    expect(getNavItem("appingresses")?.requires).toBe("managedIngress")
+  it("keeps control-plane resources out of the Kubernetes resource catalog", () => {
+    expect(getNavItem("clusters")?.k8sPlural).toBeUndefined()
+    expect(getNavItem("nodes")?.k8sPlural).toBe("nodes")
+  })
+
+  it("no longer exposes the retired AppIngress, Shell, Apply or All Resources tabs", () => {
+    expect(getNavItem("appingresses")).toBeUndefined()
+    expect(getNavItem("shell")).toBeUndefined()
+    expect(getNavItem("apply")).toBeUndefined()
+    expect(getNavItem("all-resources")).toBeUndefined()
   })
 })
 

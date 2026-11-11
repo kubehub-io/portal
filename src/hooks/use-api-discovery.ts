@@ -30,14 +30,14 @@ export interface ResourceInfo {
   resource: string
 }
 
-export function useAPIDiscovery() {
+export function useAPIDiscovery(options?: { enabled?: boolean }) {
   const activeCluster = useClusterStore((s) => s.activeCluster)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
 
   return useQuery({
     queryKey: ["api-discovery", activeCluster?.metadata.name, activeCluster?.status.publicDns],
     queryFn: () => discoverAPI(activeCluster!),
-    enabled: !!activeCluster && isAuthenticated,
+    enabled: !!activeCluster && isAuthenticated && options?.enabled !== false,
     staleTime: 5 * 60 * 1000,
   })
 }

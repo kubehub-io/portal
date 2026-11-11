@@ -24,34 +24,29 @@ describe("useNavAvailability", () => {
     useClusterStore.setState({ activeCluster: null })
   })
 
-  it("marks tabs unavailable when the cluster feature behind them is disabled", () => {
-    const availability = availabilityFor(cluster({ managedIngressProfile: { enabled: false } }))
-
-    expect(availability.get("appingresses")).toMatchObject({ available: false })
-    expect(availability.get("pods")?.available).toBe(true)
-  })
-
-  it("treats a missing managed ingress profile as enabled", () => {
+  it("marks every built-in tab available when the cluster is running", () => {
     const availability = availabilityFor(cluster())
-    expect(availability.get("appingresses")?.available).toBe(true)
+
+    expect(availability.get("pods")?.available).toBe(true)
+    expect(availability.get("clusters")?.available).toBe(true)
   })
 
-  it("keeps the catalog reachable when the cluster is stopped", () => {
+  it("keeps control-plane tabs reachable when the cluster is stopped", () => {
     const availability = availabilityFor(cluster({}, "stopped"))
 
-    expect(availability.get("all-resources")).toMatchObject({ available: true, unreachable: false })
+    expect(availability.get("clusters")).toMatchObject({ available: true, unreachable: false })
     expect(availability.get("nodes")).toMatchObject({ available: true, unreachable: false })
     expect(availability.get("custom-resources")).toMatchObject({ available: true, unreachable: true })
     expect(availability.get("secrets")).toMatchObject({ available: true, unreachable: true })
   })
 
-  it("reports a stopped cluster and a disabled feature together", () => {
-    const availability = availabilityFor(cluster({ managedIngressProfile: { enabled: false } }, "stopped"))
+  it("explains why a tab is unreachable", () => {
+    const availability = availabilityFor(cluster({}, "stopped"))
 
-    expect(availability.get("appingresses")).toMatchObject({
-      available: false,
+    expect(availability.get("pods")).toMatchObject({
+      available: true,
       unreachable: true,
-      reason: "Managed ingress is disabled for this cluster",
+      reason: "Cluster is stopped",
     })
   })
 

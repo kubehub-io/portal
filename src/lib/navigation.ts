@@ -10,18 +10,18 @@ import {
   Key,
   Boxes,
   Container,
-  Globe,
-  Terminal,
-  FilePlus,
-  ListTree,
   Route,
   type LucideIcon,
 } from "lucide-react"
 import { resourceTypeKey } from "@/lib/resource-types"
 
 /**
- * A resource tab that can be favorited, hidden, or gated by a cluster capability.
+ * A built-in tab that can be favorited or hidden.
  * `id` is the stable identity used by user preferences — never derive it from the label.
+ *
+ * Resource types discovered from the cluster (native resources and CRDs) are not
+ * part of this registry. They are pinned by identity and rendered through the
+ * generic viewer; see `resourceTypeHref`.
  */
 export interface NavItem {
   id: string
@@ -29,15 +29,15 @@ export interface NavItem {
   href: string
   description?: string
   icon: LucideIcon
-  /** Cluster feature that must be enabled for this tab to be usable. */
-  requires?: NavCapability
   /** Stays reachable even when the cluster is stopped. */
   availableWhenStopped?: boolean
-  /** API plural this page lists, used to link from the All Resources catalog. */
+  /**
+   * API plural this page lists. Used to resolve a discovered resource type to the
+   * curated page instead of the generic viewer. Control-plane pages (Clusters) have
+   * no Kubernetes plural and are never resolved from discovery.
+   */
   k8sPlural?: string
 }
-
-export type NavCapability = "managedIngress"
 
 export interface NavGroup {
   id: string
@@ -45,27 +45,19 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-export const ALL_RESOURCES_PATH = "/dashboard/resources"
 export const CUSTOM_RESOURCES_PATH = "/dashboard/custom-resources"
 export const CUSTOM_RESOURCES_TYPE_PARAM = "type"
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    id: "resources",
-    label: "Resources",
+    id: "control-plane",
+    label: "Control Plane",
     items: [
-      {
-        id: "all-resources",
-        label: "All Resources",
-        href: ALL_RESOURCES_PATH,
-        description: "Every resource type served by the cluster",
-        icon: ListTree,
-        availableWhenStopped: true,
-      },
       {
         id: "clusters",
         label: "Clusters",
         href: "/dashboard/clusters",
+        description: "Cluster lifecycle and control-plane settings",
         icon: Server,
         availableWhenStopped: true,
       },
@@ -73,31 +65,17 @@ export const NAV_GROUPS: NavGroup[] = [
         id: "nodes",
         label: "Nodes",
         href: "/dashboard/nodes",
+        description: "Control-plane nodes merged with Kubernetes nodes",
         icon: Server,
         availableWhenStopped: true,
         k8sPlural: "nodes",
       },
-      {
-        id: "appingresses",
-        label: "AppIngress",
-        href: "/dashboard/appingresses",
-        description: "Managed ingresses exposed through the cluster load balancer",
-        icon: Globe,
-        requires: "managedIngress",
-        availableWhenStopped: true,
-      },
-      {
-        id: "shell",
-        label: "Shell",
-        href: "/dashboard/shell",
-        icon: Terminal,
-      },
-      {
-        id: "apply",
-        label: "Apply",
-        href: "/dashboard/apply",
-        icon: FilePlus,
-      },
+    ],
+  },
+  {
+    id: "resources",
+    label: "Resources",
+    items: [
       {
         id: "custom-resources",
         label: "Custom Resources",

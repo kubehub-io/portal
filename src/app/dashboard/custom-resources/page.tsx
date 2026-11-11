@@ -7,6 +7,7 @@ import { useAPIDiscovery } from "@/hooks/use-api-discovery"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { DataTable, type ColumnDef } from "@/components/resources/data-table"
+import { HostnameList } from "@/components/resources/hostname-list"
 import { ResourceTypeStar } from "@/components/resources/resource-type-star"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import {
@@ -26,6 +27,7 @@ import {
   type ResourceTypeEntry,
 } from "@/lib/resource-types"
 import { CUSTOM_RESOURCES_TYPE_PARAM } from "@/lib/navigation"
+import { hostnameColumnFor } from "@/lib/hostnames"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -314,6 +316,18 @@ function CustomResourcesContent() {
       addColumn({ key: "metadata.namespace", label: "Namespace" })
     }
 
+    // Gateway resources expose hostnames in fields the CRD printer columns render
+    // as plain strings. Show them as a multi-line, link-aware column instead.
+    const hostnameColumn = hostnameColumnFor(selectedType.group, selectedType.kind)
+    if (hostnameColumn) {
+      addColumn({
+        key: hostnameColumn.key,
+        label: hostnameColumn.label,
+        width: hostnameColumn.width,
+        render: (_value, item) => <HostnameList names={hostnameColumn.read(item)} />,
+      })
+    }
+
     const printerColumns = crdColumnMap[selectedType.kind]
     if (printerColumns) {
       for (const col of printerColumns) {
@@ -327,6 +341,8 @@ function CustomResourcesContent() {
           cleanPath === "metadata.labels" ||
           cleanPath === "metadata.creationTimestamp"
         ) continue
+        // Avoid re-rendering the hostname column the page already provides.
+        if (hostnameColumn && col.name.toLowerCase() === hostnameColumn.label.toLowerCase()) continue
 
         addColumn({
           key: cleanPath,
