@@ -26,7 +26,12 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
-import { NAV_GROUPS, getNavItem, isNavItemActive } from "@/lib/navigation"
+import {
+  CUSTOM_RESOURCES_NAV_ITEM,
+  NAV_GROUPS,
+  getNavItem,
+  isNavItemActive,
+} from "@/lib/navigation"
 import {
   navItemToFavorite,
   useResourceNavStore,
@@ -113,6 +118,16 @@ function SidebarContent() {
 
   const pinnedIds = new Set(favorites.map((f) => f.id))
 
+  const customResourcesItem: DisplayItem | null = pinnedIds.has(CUSTOM_RESOURCES_NAV_ITEM.id)
+    ? null
+    : {
+        id: CUSTOM_RESOURCES_NAV_ITEM.id,
+        label: CUSTOM_RESOURCES_NAV_ITEM.label,
+        href: CUSTOM_RESOURCES_NAV_ITEM.href,
+        icon: CUSTOM_RESOURCES_NAV_ITEM.icon,
+        unreachable: false,
+      }
+
   const groups = NAV_GROUPS.map((group) => {
     const items: DisplayItem[] = []
     for (const item of group.items) {
@@ -168,7 +183,7 @@ function SidebarContent() {
               </span>
             </div>
           )}
-          {group.items.map((item) => (
+        {group.items.map((item) => (
             <NavRow
               key={item.id}
               item={item}
@@ -184,6 +199,7 @@ function SidebarContent() {
           ))}
         </div>
       ))}
+
     </nav>
   )
 
@@ -267,6 +283,21 @@ function SidebarContent() {
     </div>
   )
 
+  const customResourcesButton = customResourcesItem ? (
+    <div className="border-t px-2 pt-2">
+      <NavRow
+        item={customResourcesItem}
+        collapsed={collapsed}
+        active={isActive(customResourcesItem)}
+        onNavigate={() => setMobileOpen(false)}
+        onFavorite={() => {
+          const target = navItemToFavorite(customResourcesItem.id)
+          if (target) toggleFavorite(target)
+        }}
+      />
+    </div>
+  ) : null
+
   return (
     <>
       <Button
@@ -300,6 +331,7 @@ function SidebarContent() {
         {!collapsed && <div className="border-b p-3">{clusterSelector}</div>}
 
         {renderNav()}
+        {customResourcesButton}
         {customizeButton}
       </aside>
 
@@ -318,6 +350,7 @@ function SidebarContent() {
             </div>
             <div className="border-b p-3">{clusterSelector}</div>
             {renderNav(() => setMobileOpen(false))}
+            {customResourcesButton}
             {customizeButton}
           </aside>
         </div>

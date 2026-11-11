@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import type { ReactNode } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Trash2, AlertTriangle } from "lucide-react"
 import { deleteK8sResource, type ResourceDescriptor } from "@/lib/api/k8s-client"
@@ -24,6 +25,11 @@ export interface DeleteResourceButtonProps {
   kind: string
   /** Query key prefix of the list this resource came from. */
   queryKey: string
+  /** Extra warning shown in the confirmation dialog, e.g. data-loss impact. */
+  warning?: ReactNode
+  /** Prevents opening confirmation while a prerequisite resource still exists. */
+  disabled?: boolean
+  disabledReason?: string
 }
 
 export function DeleteResourceButton({
@@ -33,6 +39,9 @@ export function DeleteResourceButton({
   namespace,
   kind,
   queryKey,
+  warning,
+  disabled = false,
+  disabledReason,
 }: DeleteResourceButtonProps) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
@@ -52,8 +61,9 @@ export function DeleteResourceButton({
         variant="ghost"
         size="icon"
         className="h-7 w-7"
+        disabled={disabled}
         aria-label={`Delete ${kind} ${name}`}
-        title={`Delete ${kind}`}
+        title={disabledReason ?? `Delete ${kind}`}
         onClick={() => {
           setDeleteError("")
           setOpen(true)
@@ -87,6 +97,8 @@ export function DeleteResourceButton({
               ? This cannot be undone.
             </DialogDescription>
           </DialogHeader>
+
+          {warning}
 
           {deleteError && (
             <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">

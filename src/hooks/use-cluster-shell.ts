@@ -235,8 +235,10 @@ export function useClusterShell(nodeName?: string) {
         if (abortRef.current) return
 
         const [getRes, nodeRes] = await Promise.all([
-          fetch(podUrl, { headers }),
-          fetch(nodeUrl, { headers }),
+          // Pod phase is deliberately polled; never allow the browser or an
+          // intermediary cache to return the first Pending response forever.
+          fetch(podUrl, { headers, cache: "no-store" }),
+          fetch(nodeUrl, { headers, cache: "no-store" }),
         ])
 
         if (getRes.status === 404) {
@@ -286,7 +288,7 @@ export function useClusterShell(nodeName?: string) {
             // Wait for actual deletion
             for (;;) {
               if (abortRef.current) return
-              const checkRes = await fetch(podUrl, { headers })
+              const checkRes = await fetch(podUrl, { headers, cache: "no-store" })
               if (checkRes.status === 404) break
               await new Promise((r) => setTimeout(r, 1000))
             }
@@ -364,7 +366,10 @@ async function waitForPodRunning(
   while (Date.now() < deadline) {
     if (isAborted()) return false
 
-    const res = await fetch(`${host}/api/v1/namespaces/${namespace}/pods/${podName}`, { headers })
+    const res = await fetch(`${host}/api/v1/namespaces/${namespace}/pods/${podName}`, {
+      headers,
+      cache: "no-store",
+    })
     if (!res.ok) throw new Error(`Failed to get pod status: ${res.status}`)
 
     const pod = (await res.json()) as { status?: { phase?: string } }

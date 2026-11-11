@@ -48,6 +48,15 @@ export interface NavGroup {
 export const CUSTOM_RESOURCES_PATH = "/dashboard/custom-resources"
 export const CUSTOM_RESOURCES_TYPE_PARAM = "type"
 
+/** Fixed utility entry, rendered at the bottom of the sidebar. */
+export const CUSTOM_RESOURCES_NAV_ITEM: NavItem = {
+  id: "custom-resources",
+  label: "Custom Resources",
+  href: CUSTOM_RESOURCES_PATH,
+  description: "Browse any resource type through the generic viewer",
+  icon: Boxes,
+}
+
 export const NAV_GROUPS: NavGroup[] = [
   {
     id: "control-plane",
@@ -69,19 +78,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Server,
         availableWhenStopped: true,
         k8sPlural: "nodes",
-      },
-    ],
-  },
-  {
-    id: "resources",
-    label: "Resources",
-    items: [
-      {
-        id: "custom-resources",
-        label: "Custom Resources",
-        href: CUSTOM_RESOURCES_PATH,
-        description: "Browse any resource type through the generic viewer",
-        icon: Boxes,
       },
     ],
   },
@@ -133,7 +129,10 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((group) => group.items)
+export const NAV_ITEMS: NavItem[] = [
+  ...NAV_GROUPS.flatMap((group) => group.items),
+  CUSTOM_RESOURCES_NAV_ITEM,
+]
 
 export function getNavItem(id: string): NavItem | undefined {
   return NAV_ITEMS.find((item) => item.id === id)
