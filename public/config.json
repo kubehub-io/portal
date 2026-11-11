@@ -1,7 +1,7 @@
 {
   "apiUrl": "https://api.kubehub.io",
   "oidcConfig": {
-    "issuer": "https://login.kubehub.io/auth/realms/Kubehub",
+    "issuer": "https://login.kubehub.io/realms/Kubehub",
     "clientId": "publicClient"
   },
   "webShellConfig": {

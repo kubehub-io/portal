@@ -43,9 +43,30 @@ interface DataTableProps {
 }
 
 function getNestedValue(obj: unknown, path: string): unknown {
-  return path.split(".").reduce((acc: unknown, key: string) => {
-    if (acc && typeof acc === "object" && key in (acc as Record<string, unknown>)) {
-      return (acc as Record<string, unknown>)[key]
+  // Kubernetes printer columns can use JSONPath condition filters, for
+  // example: .status.conditions[?(@.type=="Accepted")].status
+  const tokens = [...path.matchAll(/([^.[\]]+)|\[([^\]]+)\]/g)].map((match) =>
+    match[1] ?? match[2],
+  )
+
+  return tokens.reduce((acc: unknown, token: string) => {
+    if (token.startsWith("?(@.")) {
+      const filter = /^\?\(@\.([\w-]+)\s*==\s*(['"])(.*?)\2\)$/.exec(token)
+      if (!filter || !Array.isArray(acc)) return undefined
+      return acc.find(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          (item as Record<string, unknown>)[filter[1]] === filter[3],
+      )
+    }
+
+    if (Array.isArray(acc) && /^\d+$/.test(token)) {
+      return acc[Number(token)]
+    }
+
+    if (acc && typeof acc === "object" && token in (acc as Record<string, unknown>)) {
+      return (acc as Record<string, unknown>)[token]
     }
     return undefined
   }, obj)

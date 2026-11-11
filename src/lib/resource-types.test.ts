@@ -17,9 +17,9 @@ function discovery(overrides?: Partial<APIDiscoveryResult>): APIDiscoveryResult 
         versions: [{ groupVersion: "v1", version: "v1" }],
         preferredVersion: { groupVersion: "v1", version: "v1" },
         resources: [
-          { name: "pods", singularName: "pod", kind: "Pod", namespaced: true },
-          { name: "pods/log", singularName: "", kind: "Pod", namespaced: true },
-          { name: "services", singularName: "service", kind: "Service", namespaced: true },
+          { name: "pods", singularName: "pod", kind: "Pod", namespaced: true, version: "v1" },
+          { name: "pods/log", singularName: "", kind: "Pod", namespaced: true, version: "v1" },
+          { name: "services", singularName: "service", kind: "Service", namespaced: true, version: "v1" },
         ],
       },
       {
@@ -27,7 +27,7 @@ function discovery(overrides?: Partial<APIDiscoveryResult>): APIDiscoveryResult 
         versions: [{ groupVersion: "apps/v1", version: "v1" }],
         preferredVersion: { groupVersion: "apps/v1", version: "v1" },
         resources: [
-          { name: "deployments", singularName: "deployment", kind: "Deployment", namespaced: true },
+          { name: "deployments", singularName: "deployment", kind: "Deployment", namespaced: true, version: "v1" },
         ],
       },
       {
@@ -35,7 +35,7 @@ function discovery(overrides?: Partial<APIDiscoveryResult>): APIDiscoveryResult 
         versions: [{ groupVersion: "kube.example.com/v1", version: "v1" }],
         preferredVersion: { groupVersion: "kube.example.com/v1", version: "v1" },
         resources: [
-          { name: "widgets", singularName: "widget", kind: "Widget", namespaced: true },
+          { name: "widgets", singularName: "widget", kind: "Widget", namespaced: true, version: "v1" },
         ],
       },
       { name: "metrics.k8s.io", versions: [], preferredVersion: { groupVersion: "", version: "" } },

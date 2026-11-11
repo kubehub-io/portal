@@ -40,6 +40,10 @@ export interface MonitoringProfile {
   enabled?: boolean
 }
 
+export interface ManagedControllerProfile {
+  enabledControllers?: string[]
+}
+
 export interface StorageProfile {
   backend?: string
 }
@@ -48,6 +52,7 @@ export interface Network {
   podCIDR?: string
   serviceCIDR?: string
   kubeDNSServiceIP?: string
+  cni?: string
   managedIngress?: boolean
 }
 
@@ -57,6 +62,7 @@ export interface ClusterSpecPatch {
   managedIngressProfile?: ManagedIngressProfile
   storageProfile?: StorageProfile
   monitoringProfile?: MonitoringProfile
+  managedControllerProfile?: ManagedControllerProfile
 }
 
 export interface CreateClusterRequest {
@@ -119,6 +125,22 @@ export async function downloadKubeconfig(name: string, certbased = false): Promi
   )
   const data = await res.json()
   return data.kubeconfig
+}
+
+// ── Node Join Token ──────────────────────────────────────
+
+export interface NodeJoinTokenResponse {
+  nodeJoinToken: string
+  token_type?: string
+  expires_in: number
+  scope?: string
+}
+
+export async function issueNodeJoinToken(clusterName: string): Promise<NodeJoinTokenResponse> {
+  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/nodeJoinToken`, {
+    method: "POST",
+  })
+  return res.json()
 }
 
 // ── Operations (shared by Cluster, Node, AppIngress) ─────

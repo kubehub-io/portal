@@ -5,6 +5,7 @@ import { useK8sEvents } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { useState, useMemo, useCallback } from "react"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
+import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import {
   Select,
   SelectContent,
@@ -121,12 +122,10 @@ export default function EventsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Events</h2>
-        <p className="text-muted-foreground">
-          {activeCluster ? `${activeCluster.metadata.name} / events` : "No active cluster"}
-        </p>
-      </div>
+      <ResourcePageHeader
+        title="Events"
+        subtitle={activeCluster ? `${activeCluster.metadata.name} / events` : "No active cluster"}
+      />
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Namespace:</span>

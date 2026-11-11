@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useClusters, useDeleteCluster, useDownloadKubeconfig, useReconcileCluster } from "@/hooks/use-clusters"
 import { startCluster as doStartCluster, listControlPlaneNodes } from "@/lib/api/control-plane"
 import { ClusterDialog, fetchAppIngressCount } from "@/components/cluster-dialog"
+import { getComponentLink } from "@/lib/component-links"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -23,7 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, Trash2, Download, Loader2, AlertTriangle, ExternalLink, Play, RefreshCw, Settings } from "lucide-react"
+import { Plus, Trash2, Download, Loader2, AlertTriangle, ExternalLink, Play, RefreshCw, Settings, Layers } from "lucide-react"
 
 function clusterState(cluster: { status?: { state?: string } }): string {
   return cluster.status?.state || "Provisioning"
@@ -55,6 +56,7 @@ export default function ClustersPage() {
   const [kubeconfigTarget, setKubeconfigTarget] = useState<string | null>(null)
   const [certBased, setCertBased] = useState(false)
   const [startTarget, setStartTarget] = useState<string | null>(null)
+  const [componentsTarget, setComponentsTarget] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState("")
   const reconcileCluster = useReconcileCluster()
@@ -169,6 +171,14 @@ export default function ClustersPage() {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Reconcile</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" onClick={() => setComponentsTarget(cluster.metadata.name)}>
+                          <Layers className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Components</TooltipContent>
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -319,6 +329,113 @@ choco install kubelogin`}</pre>
             <Button onClick={handleStartConfirm} disabled={starting}>
               {starting ? "Starting..." : "Start"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!componentsTarget} onOpenChange={(o) => { if (!o) setComponentsTarget(null) }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Cluster Components — {componentsTarget}</DialogTitle>
+            <DialogDescription>
+              Components running on the platform (server side) and on user nodes.
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const c = clusters.find((cl) => cl.metadata.name === componentsTarget)
+            const cp = c?.status?.controlPlaneComponents ?? {}
+            const addons = c?.status?.addonComponents ?? {}
+            const cpEntries = Object.entries(cp).sort(([a], [b]) => a.localeCompare(b))
+            const addonEntries = Object.entries(addons).sort(([a], [b]) => a.localeCompare(b))
+            return (
+              <div className="space-y-4">
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold">Platform (server side)</h4>
+                  {cpEntries.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No control plane components reported.</p>
+                  ) : (
+                    <div className="rounded-md border">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="px-3 py-2 text-left font-medium">Component</th>
+                            <th className="px-3 py-2 text-left font-medium">Version</th>
+                            <th className="px-3 py-2 text-left font-medium">Link</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {cpEntries.map(([key, comp]) => (
+                            <tr key={key} className="border-b last:border-0">
+                              <td className="px-3 py-2 font-mono">{comp.id ?? key}</td>
+                              <td className="px-3 py-2">{comp.version ?? "-"}</td>
+                              <td className="px-3 py-2">
+                                {(() => {
+                                  const id = comp.id ?? key
+                                  const link = getComponentLink(id)
+                                  return link ? (
+                                    <a href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline underline-offset-2">
+                                      <ExternalLink className="h-3 w-3" />
+                                      Docs
+                                    </a>
+                                  ) : (
+                                    "-"
+                                  )
+                                })()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold">User node (addons)</h4>
+                  {addonEntries.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No addon components reported.</p>
+                  ) : (
+                    <div className="rounded-md border">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="px-3 py-2 text-left font-medium">Component</th>
+                            <th className="px-3 py-2 text-left font-medium">Version</th>
+                            <th className="px-3 py-2 text-left font-medium">Dependencies</th>
+                            <th className="px-3 py-2 text-left font-medium">Link</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {addonEntries.map(([key, comp]) => (
+                            <tr key={key} className="border-b last:border-0">
+                              <td className="px-3 py-2 font-mono">{comp.id ?? key}</td>
+                              <td className="px-3 py-2">{comp.version ?? "-"}</td>
+                              <td className="px-3 py-2">{((comp as { dependencies?: string[] }).dependencies ?? []).join(", ") || "-"}</td>
+                              <td className="px-3 py-2">
+                                {(() => {
+                                  const id = comp.id ?? key
+                                  const link = getComponentLink(id)
+                                  return link ? (
+                                    <a href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline underline-offset-2">
+                                      <ExternalLink className="h-3 w-3" />
+                                      Docs
+                                    </a>
+                                  ) : (
+                                    "-"
+                                  )
+                                })()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setComponentsTarget(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

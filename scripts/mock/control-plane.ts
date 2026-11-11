@@ -136,6 +136,19 @@ export function controlPlaneHandler(): Handler {
       return sendText(res, 200, KUBECONFIG_TEMPLATE(cluster.status?.publicDns ?? "mock.local", "mock-user"), "text/yaml; charset=utf-8")
     }
 
+    const nodeJoinTokenMatch = path.match(new RegExp(`^${API_BASE}/clusters/([^/]+)/nodeJoinToken$`))
+    if (nodeJoinTokenMatch && method === "POST") {
+      const name = decodeURIComponent(nodeJoinTokenMatch[1])
+      const cluster = state.clusters.find((c) => c.metadata?.name === name)
+      if (!cluster) return sendJson(res, 404, { message: `Cluster ${name} not found` })
+      return sendJson(res, 200, {
+        nodeJoinToken: `mock-node-join-token-${Date.now()}`,
+        token_type: "Bearer",
+        expires_in: 600,
+        scope: `cluster:${name}:node:join`,
+      })
+    }
+
     if (path === `${API_BASE}/metadata` && method === "GET") {
       return sendJson(res, 200, { regions: MOCK_METADATA_REGIONS })
     }

@@ -18,10 +18,14 @@ interface ClusterSpec {
     nodePhysicalCIDR?: string
     podCIDR?: string
     serviceCIDR?: string
+    kubeDNSServiceIP?: string
+    cni?: string
+    managedIngress?: boolean
   }
   managedIngressProfile?: ManagedIngressProfile
   storageProfile?: { backend?: string }
   monitoringProfile?: { enabled?: boolean }
+  managedControllerProfile?: { enabledControllers?: string[] }
 }
 
 interface OperationError {

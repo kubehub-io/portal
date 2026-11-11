@@ -24,6 +24,7 @@ import {
   Star,
   EyeOff,
   X,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react"
 import { NAV_GROUPS, getNavItem, isNavItemActive } from "@/lib/navigation"
@@ -135,8 +136,34 @@ function SidebarContent() {
 
   const hiddenCount = hidden.length
 
+  // Chat lives outside the dashboard resource tabs, so it is always shown and
+  // cannot be pinned or hidden.
+  const chatItem: DisplayItem = {
+    id: "chat",
+    label: "Chat",
+    href: "/chat",
+    icon: MessageSquare,
+    unreachable: false,
+  }
+
   const renderNav = (onNavigate?: () => void) => (
     <nav className="flex-1 overflow-y-auto p-2">
+      <div className="mb-2">
+        {!collapsed && (
+          <div className="px-2 py-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Assistant
+            </span>
+          </div>
+        )}
+        <NavRow
+          item={chatItem}
+          collapsed={collapsed}
+          active={isActive(chatItem)}
+          onNavigate={onNavigate}
+        />
+      </div>
+
       {favoriteItems.length > 0 && (
         <div className="mb-2">
           {!collapsed && (

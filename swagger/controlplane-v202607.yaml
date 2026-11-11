@@ -171,6 +171,35 @@ paths:
           description: Unauthorized
         '404':
           description: Cluster not found
+  /clusters/{name}/nodeJoinToken:
+    post:
+      summary: Issue a node join token
+      description: Issue a short-lived token that may be used only to create a node for this cluster.
+      operationId: nodeJoinToken
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Node join token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodeJoinToken: { type: string }
+                  token_type: { type: string }
+                  expires_in: { type: integer }
+                  scope: { type: string }
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cluster not found
   /clusters/{cluster}/nodes:
     get:
       summary: List nodes
@@ -226,6 +255,8 @@ paths:
           description: Invalid request
         '401':
           description: Unauthorized
+        '409':
+          description: Node already exists
         '404':
           description: Cluster not found
   /clusters/{cluster}/nodes/{node}/bootstrapSecret:
@@ -567,6 +598,8 @@ components:
           $ref: '#/components/schemas/StorageProfile'
         monitoringProfile:
           $ref: '#/components/schemas/MonitoringProfile'
+        managedControllerProfile:
+          $ref: '#/components/schemas/ManagedControllerProfile'
     ComponentProfile:
       type: object
       properties:
@@ -625,6 +658,10 @@ components:
         kubeDNSServiceIP:
           type: string
           description: CoreDNS service IP (e.g., 10.20.0.10)
+        cni:
+          type: string
+          description: CNI plugin (e.g., cilium, flannel). Defaults to cilium and cannot be changed after creation. Managed ingress is only supported on cilium.
+          default: cilium
         managedIngress:
           type: boolean
           description: "Whether the cluster's ingresses are managed automatically (default: true)"
@@ -636,6 +673,7 @@ components:
       enum:
         - ""
         - longhorn
+        - local-path-provisioner
     StorageProfile:
       type: object
       properties:
@@ -647,6 +685,14 @@ components:
         enabled:
           type: boolean
           description: Whether monitoring is enabled for the cluster
+    ManagedControllerProfile:
+      type: object
+      properties:
+        enabledControllers:
+          type: array
+          items:
+            type: string
+          description: Managed controllers enabled for the cluster; always includes clustersettings, which cannot be disabled
     Node:
       type: object
       properties:

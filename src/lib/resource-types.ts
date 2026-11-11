@@ -39,12 +39,15 @@ export function buildResourceTypes(discovery?: APIDiscoveryResult): ResourceType
 
   for (const group of discovery.groups) {
     if (!group.resources) continue
-    const version = group.preferredVersion?.version ?? group.versions?.[0]?.version
-    if (!version) continue
+    const fallbackVersion = group.preferredVersion?.version ?? group.versions?.[0]?.version
+    if (!fallbackVersion) continue
 
     for (const resource of group.resources) {
       // Subresources (pods/log, deployments/scale) are not browsable on their own.
       if (!resource.name || resource.name.includes("/")) continue
+      // Discovery walks every served version, so honor the version a resource was
+      // actually found in before falling back to the group's preferred version.
+      const version = resource.version ?? fallbackVersion
       const key = resourceTypeKey(group.name, version, resource.kind)
       if (seen.has(key)) continue
       seen.add(key)

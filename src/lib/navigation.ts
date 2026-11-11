@@ -14,6 +14,7 @@ import {
   Terminal,
   FilePlus,
   ListTree,
+  Route,
   type LucideIcon,
 } from "lucide-react"
 import { resourceTypeKey } from "@/lib/resource-types"
@@ -133,6 +134,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "services", label: "Services", href: "/dashboard/services", icon: Network, k8sPlural: "services" },
       { id: "endpointslices", label: "EndpointSlices", href: "/dashboard/endpointslices", icon: Share2, k8sPlural: "endpointslices" },
+      { id: "hubhttproutes", label: "HubHttpRoutes", href: "/dashboard/hubhttproutes", icon: Route, k8sPlural: "hubhttproutes" },
     ],
   },
   {
