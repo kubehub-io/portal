@@ -1,3 +1,5 @@
+import { isHttpRouteKind } from "@/lib/http-route"
+
 const GATEWAY_API_GROUP = "gateway.networking.k8s.io"
 const KUBEHUB_GATEWAY_GROUP = "gateway.kubehub.io"
 
@@ -82,7 +84,7 @@ export function hostnameColumnFor(group: string, kind: string): HostnameColumn |
     }
   }
 
-  if (kind === "HttpRoute") {
+  if (isHttpRouteKind(kind)) {
     return {
       key: "spec.hostnames",
       label: "Hostnames",

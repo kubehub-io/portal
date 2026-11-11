@@ -8,6 +8,10 @@ import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { DataTable, type ColumnDef } from "@/components/resources/data-table"
 import { HostnameList } from "@/components/resources/hostname-list"
+import {
+  HttpRouteConditions,
+  HttpRouteRules,
+} from "@/components/resources/http-route-details"
 import { ResourceTypeStar } from "@/components/resources/resource-type-star"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import {
@@ -28,6 +32,7 @@ import {
 } from "@/lib/resource-types"
 import { CUSTOM_RESOURCES_TYPE_PARAM } from "@/lib/navigation"
 import { hostnameColumnFor } from "@/lib/hostnames"
+import { isHttpRouteKind } from "@/lib/http-route"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -328,6 +333,30 @@ function CustomResourcesContent() {
       })
     }
 
+    const routeKind = isHttpRouteKind(selectedType.kind)
+    if (routeKind) {
+      addColumn({
+        key: "__httpRouteConditions",
+        label: "Conditions",
+        width: "16rem",
+        render: (_value, item) => <HttpRouteConditions route={item} />,
+      })
+      addColumn({
+        key: "__httpRouteRules",
+        label: "Rules",
+        width: "22rem",
+        render: (_value, item) => <HttpRouteRules route={item} />,
+      })
+    }
+
+    // Printer columns already covered by the name/hostname/route columns above.
+    const providedLabels = new Set<string>()
+    if (hostnameColumn) providedLabels.add(hostnameColumn.label.toLowerCase())
+    if (routeKind) {
+      providedLabels.add("conditions")
+      providedLabels.add("rules")
+    }
+
     const printerColumns = crdColumnMap[selectedType.kind]
     if (printerColumns) {
       for (const col of printerColumns) {
@@ -341,8 +370,8 @@ function CustomResourcesContent() {
           cleanPath === "metadata.labels" ||
           cleanPath === "metadata.creationTimestamp"
         ) continue
-        // Avoid re-rendering the hostname column the page already provides.
-        if (hostnameColumn && col.name.toLowerCase() === hostnameColumn.label.toLowerCase()) continue
+        // Avoid re-rendering the hostname/route columns the page already provides.
+        if (providedLabels.has(col.name.toLowerCase())) continue
 
         addColumn({
           key: cleanPath,

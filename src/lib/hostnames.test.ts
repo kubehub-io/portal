@@ -57,8 +57,8 @@ describe("hostname columns", () => {
     }
   })
 
-  it("reads HttpRoute hostnames from spec", () => {
-    const column = hostnameColumnFor("gateway.networking.k8s.io", "HttpRoute")
+  it("reads HTTPRoute hostnames from spec", () => {
+    const column = hostnameColumnFor("gateway.networking.k8s.io", "HTTPRoute")
     expect(column?.key).toBe("spec.hostnames")
     expect(column?.read({ spec: { hostnames: ["a.example.com", "b.example.com"] } })).toEqual([
       "a.example.com",

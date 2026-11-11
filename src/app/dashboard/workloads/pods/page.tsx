@@ -1,6 +1,7 @@
 "use client"
 
 import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { ContainerStatusSquares } from "@/components/resources/container-status-squares"
 import { PodLogsDialog } from "@/components/resources/pod-logs-dialog"
 import { PodExecDialog } from "@/components/resources/pod-exec-dialog"
 import { Button } from "@/components/ui/button"
@@ -59,7 +60,16 @@ export default function PodsPage() {
   }
 
   const columns = [
-    { key: "metadata.name", label: "Name" },
+    {
+      key: "metadata.name",
+      label: "Name",
+      render: (v: unknown, item: Record<string, unknown>) => (
+        <div className="flex items-center gap-2">
+          <span className="text-xs">{String(v ?? "-")}</span>
+          <ContainerStatusSquares pod={item} />
+        </div>
+      ),
+    },
     { key: "metadata.namespace", label: "Namespace" },
     {
       key: "status.phase",
