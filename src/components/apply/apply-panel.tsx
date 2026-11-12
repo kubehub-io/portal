@@ -6,7 +6,7 @@ import { useClusterStore } from "@/stores/cluster-store"
 import { useQueryClient } from "@tanstack/react-query"
 import { applyK8sResource, getK8sResource, type ResourceDescriptor } from "@/lib/api/k8s-client"
 import { useState, useRef, useCallback } from "react"
-import { Upload, Link, Loader2, CheckCircle, XCircle, FileText } from "lucide-react"
+import { Upload, Link, Loader2, CheckCircle, XCircle, FileText, Circle } from "lucide-react"
 import * as yaml from "js-yaml"
 import { YamlEditor } from "@/components/yaml/yaml-editor"
 import { useAPIDiscovery, resolveResourceFromDiscovery } from "@/hooks/use-api-discovery"
@@ -17,7 +17,7 @@ interface ApplyResult {
   name: string
   kind: string
   namespace: string
-  action: "created" | "updated" | "error"
+  action: "created" | "updated" | "unchanged" | "error"
   error?: string
 }
 
@@ -45,6 +45,51 @@ function resolveResourceDescriptor(apiVersion: string, kind: string): ResourceDe
     version: apiVersion.slice(slashIdx + 1),
     resource: `${kind.toLowerCase()}s`,
   }
+}
+
+const SERVER_OWNED_METADATA = new Set([
+  "creationTimestamp",
+  "deletionGracePeriodSeconds",
+  "deletionTimestamp",
+  "generation",
+  "managedFields",
+  "resourceVersion",
+  "uid",
+])
+
+function comparableManifest(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(comparableManifest)
+  if (!value || typeof value !== "object") return value
+
+  const source = value as Record<string, unknown>
+  const result: Record<string, unknown> = {}
+  for (const [key, child] of Object.entries(source)) {
+    if (key === "status") continue
+    if (key === "metadata" && child && typeof child === "object") {
+      const metadata: Record<string, unknown> = {}
+      for (const [metadataKey, metadataValue] of Object.entries(child as Record<string, unknown>)) {
+        if (!SERVER_OWNED_METADATA.has(metadataKey)) metadata[metadataKey] = comparableManifest(metadataValue)
+      }
+      result[key] = metadata
+    } else {
+      result[key] = comparableManifest(child)
+    }
+  }
+  return result
+}
+
+/** True when every field supplied by the manifest already matches live state. */
+function manifestMatchesLive(live: unknown, desired: unknown): boolean {
+  if (Array.isArray(desired)) {
+    return Array.isArray(live) && JSON.stringify(live) === JSON.stringify(desired)
+  }
+  if (desired && typeof desired === "object") {
+    if (!live || typeof live !== "object" || Array.isArray(live)) return false
+    return Object.entries(desired as Record<string, unknown>).every(([key, value]) =>
+      manifestMatchesLive((live as Record<string, unknown>)[key], value),
+    )
+  }
+  return live === desired
 }
 
 export function ApplyPanel({ embedded = false }: { embedded?: boolean }) {
@@ -96,16 +141,26 @@ export function ApplyPanel({ embedded = false }: { embedded?: boolean }) {
           // Probed only to report whether the resource was created or updated;
           // server-side apply decides that itself.
           let exists = false
+          let unchanged = false
           try {
-            await getK8sResource(activeCluster!, ns, desc, name)
+            const live = await getK8sResource(activeCluster!, ns, desc, name)
             exists = true
+            unchanged = manifestMatchesLive(
+              comparableManifest(live),
+              comparableManifest(doc),
+            )
           } catch {
             exists = false
           }
 
           await applyK8sResource(activeCluster!, ns, desc, name, doc)
           queryClient.invalidateQueries({ queryKey: [desc.resource] })
-          res.push({ name: info.name, kind: info.kind, namespace: info.namespace, action: exists ? "updated" : "created" })
+          res.push({
+            name: info.name,
+            kind: info.kind,
+            namespace: info.namespace,
+            action: exists ? (unchanged ? "unchanged" : "updated") : "created",
+          })
         } catch (e) {
           res.push({
             name: "",
@@ -160,6 +215,7 @@ export function ApplyPanel({ embedded = false }: { embedded?: boolean }) {
   const actionIcons: Record<string, React.ReactNode> = {
     created: <CheckCircle className="h-4 w-4 text-green-500" />,
     updated: <CheckCircle className="h-4 w-4 text-blue-500" />,
+    unchanged: <Circle className="h-4 w-4 text-muted-foreground" />,
     error: <XCircle className="h-4 w-4 text-destructive" />,
   }
 
@@ -271,7 +327,11 @@ export function ApplyPanel({ embedded = false }: { embedded?: boolean }) {
                     ) : (
                       <div className="space-y-0.5">
                         <div className="font-medium">
-                          {r.action === "created" ? "Created" : "Updated"} {r.kind}/{r.name}
+                          {r.action === "created"
+                            ? "Created"
+                            : r.action === "updated"
+                              ? "Updated"
+                              : "Unchanged"} {r.kind}/{r.name}
                         </div>
                         <div>Namespace: {r.namespace || "cluster-scoped"}</div>
                       </div>

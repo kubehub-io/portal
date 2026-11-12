@@ -18,7 +18,7 @@ export interface ExecSession {
   close: () => void
 }
 
-const SHELL_FALLBACKS = ["/bin/sh", "/bin/bash", "/bin/ash", "/bin/dash"]
+const SHELL_FALLBACKS = ["/bin/bash", "/bin/sh", "/bin/ash", "/bin/dash"]
 
 export function usePodExec({ namespace, podName, containerName, command }: UsePodExecOptions) {
   const wsRef = useRef<WebSocket | null>(null)

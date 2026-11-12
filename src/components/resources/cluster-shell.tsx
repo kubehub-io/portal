@@ -1,58 +1,27 @@
 "use client"
 
 import { useRef, useEffect, useState, useCallback } from "react"
-import { useQuery } from "@tanstack/react-query"
 import { useClusterShell } from "@/hooks/use-cluster-shell"
 import { usePodExec } from "@/hooks/use-pod-exec"
-import { listClusterScopedResources } from "@/lib/api/k8s-client"
-import type { K8sResource } from "@/lib/api/k8s-client"
-import { useClusterStore } from "@/stores/cluster-store"
-import { useAuthStore } from "@/stores/auth-store"
 import { Terminal as Xterm } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Loader2, Terminal, RefreshCw, PlugZap } from "lucide-react"
 
 const PHASE_LABELS: Record<string, string> = {
   idle: "Idle",
   checking: "Checking for existing shell pod...",
-  recreating: "Pod spec outdated, recreating...",
   creating: "Creating shell pod...",
   waiting: "Waiting for pod to be Running...",
-  "writing-token": "Injecting credentials into pod...",
+  disabled: "Agent Sandbox is not enabled",
   ready: "Connected",
   error: "Error",
 }
 
 export function ClusterShell() {
-  const [selectedNode, setSelectedNode] = useState<string>("__auto")
-  const { phase, error, podName, namespace, podNodeName, start, retry } = useClusterShell(selectedNode === "__auto" ? undefined : selectedNode)
+  const { phase, error, podName, namespace, start, retry } = useClusterShell()
   const startedRef = useRef(false)
   const [sessionKey, setSessionKey] = useState(0)
-
-  const activeCluster = useClusterStore((s) => s.activeCluster)
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
-
-  const { data: nodes } = useQuery({
-    queryKey: ["shell-nodes", activeCluster?.status.publicDns],
-    queryFn: async () => {
-      const list = await listClusterScopedResources<K8sResource>(activeCluster!, {
-        version: "v1",
-        resource: "nodes",
-      })
-      return list.items ?? []
-    },
-    enabled: !!activeCluster?.status.publicDns && isAuthenticated,
-    refetchInterval: 30_000,
-  })
-  const showNodeWarning = phase !== "ready" && (!nodes || nodes.length === 0)
 
   useEffect(() => {
     if (!startedRef.current) {
@@ -65,46 +34,13 @@ export function ClusterShell() {
     setSessionKey((k) => k + 1)
   }, [])
 
-  // Update shell pod token when token is refreshed and shell is active
-  useEffect(() => {
-    if (phase !== "ready" || !activeCluster?.status.publicDns || !podName || !namespace) return
-
-    const unsubscribe = useAuthStore.getState().subscribeTokenRefreshed((newToken) => {
-      import("@/hooks/use-cluster-shell").then(({ updateShellPodToken }) => {
-        updateShellPodToken(activeCluster.status.publicDns, namespace, podName, newToken).catch(() => {})
-      })
-    })
-
-    return unsubscribe
-  }, [phase, activeCluster?.status.publicDns, podName, namespace])
-
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b px-3 py-1.5 text-xs shrink-0">
-        <span className="shrink-0 text-muted-foreground">Target node:</span>
-        <Select value={selectedNode} onValueChange={setSelectedNode}>
-          <SelectTrigger className="h-7 w-56 text-xs">
-            <SelectValue placeholder="Auto (any node)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__auto">Auto (any node)</SelectItem>
-            {nodes?.map((n) => (
-              <SelectItem key={n.metadata.name} value={n.metadata.name}>
-                {n.metadata.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {phase === "ready" && podNodeName && (
-          <span className="shrink-0 text-muted-foreground">
-            → on <span className="font-mono">{podNodeName}</span>
-          </span>
-        )}
-        {showNodeWarning && (
-          <p className="min-w-[16rem] flex-1 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
-            Requires at least one node onboarded to the cluster to use this shell. Anything stored here lives in a temporary shell pod and will be lost when the pod restarts — don&apos;t store important data in the shell.
-          </p>
-        )}
+        <span className="shrink-0 text-muted-foreground">Agent Sandbox shell</span>
+        <span className="text-[11px] text-muted-foreground">
+          The same sandbox pod is reused while this browser tab remains open; after the tab closes it expires automatically within 5 minutes.
+        </span>
         {phase === "ready" && error && (
           <p className="min-w-[16rem] flex-1 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
             {error}
@@ -121,7 +57,17 @@ export function ClusterShell() {
         />
       ) : (
         <div className="flex flex-col items-center justify-center gap-4 p-12 flex-1">
-          {phase === "error" ? (
+          {phase === "disabled" ? (
+            <>
+              <div className="text-center font-medium">Agent Sandbox is not enabled</div>
+              <div className="max-w-md text-center text-sm text-muted-foreground">
+                Enable the <strong>agent-sandbox</strong> managed controller in Cluster Settings before using the shell.
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <a href="/dashboard/clusters">Open Cluster Settings</a>
+              </Button>
+            </>
+          ) : phase === "error" ? (
             <>
               <div className="text-destructive font-medium">Failed to start shell</div>
               <div className="text-sm text-muted-foreground max-w-md text-center">{error}</div>
@@ -142,7 +88,13 @@ export function ClusterShell() {
   )
 }
 
-const SHELL_COMMAND = ["/bin/bash"]
+const SHELL_COMMAND = [
+  "/bin/bash",
+  "--noprofile",
+  "--norc",
+  "-c",
+  "export PS1='sandbox@\\h:\\w\\$ '; exec /bin/bash --norc -i",
+]
 
 function ShellTerminal({
   podName,
@@ -153,7 +105,12 @@ function ShellTerminal({
   namespace: string
   onDisconnected: () => void
 }) {
-  const { connected, onOutputRef, getSession } = usePodExec({ namespace, podName, command: SHELL_COMMAND })
+  const { connected, onOutputRef, getSession } = usePodExec({
+    namespace,
+    podName,
+    command: SHELL_COMMAND,
+    containerName: "sandboxd",
+  })
   const terminalRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Xterm | null>(null)
   const fitRef = useRef<FitAddon | null>(null)

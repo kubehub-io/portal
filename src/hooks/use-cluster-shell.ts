@@ -1,81 +1,430 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef, useMemo } from "react"
-import { useClusterStore } from "@/stores/cluster-store"
+import { useCallback, useRef, useState } from "react"
+import { getK8sApiBase } from "@/lib/api/k8s-client"
 import { useAuthStore } from "@/stores/auth-store"
-import { getConfigSync } from "@/lib/config"
+import { useClusterStore } from "@/stores/cluster-store"
 
-function getWebShellConfig() {
-  const { webShellConfig } = getConfigSync()
-  return webShellConfig ?? { image: "", specVersion: "2" }
+const SANDBOX_NAMESPACE = "agent-sandbox"
+const SANDBOX_RUNTIME_CLASS = "gvisor"
+const SANDBOX_API = "agents.x-k8s.io/v1beta1"
+const SANDBOX_RESOURCE = "sandboxes"
+const POD_NAME_ANNOTATION = "agents.x-k8s.io/pod-name"
+// This is a lease, not the session lifetime. It is renewed while this browser
+// tab is alive; if the tab crashes or closes without cleanup, the last lease
+// expires and the controller deletes the Sandbox.
+const SANDBOX_LEASE_SECONDS = 5 * 60
+const SANDBOX_LEASE_RENEWAL_MS = 60_000
+const READY_TIMEOUT_MS = 120_000
+
+function shutdownTime(): string {
+  return new Date(Date.now() + SANDBOX_LEASE_SECONDS * 1000).toISOString()
 }
 
-function getDefaultPodSpec(nodeName?: string): Record<string, unknown> {
-  const { image, specVersion } = getWebShellConfig()
-  const spec: Record<string, unknown> = {
-    apiVersion: "v1",
-    kind: "Pod",
-    metadata: {
-      name: "shell-pod",
-      namespace: "default",
-      annotations: {
-        "shell.kubehub.io/spec-version": specVersion,
-      },
+function shellName(): string {
+  const key = "kubehub:agent-sandbox-session"
+  let sessionId = ""
+  try {
+    sessionId = sessionStorage.getItem(key) ?? ""
+    if (!sessionId) {
+      sessionId = crypto.randomUUID().slice(0, 8)
+      sessionStorage.setItem(key, sessionId)
+    }
+  } catch {
+    sessionId = crypto.randomUUID().slice(0, 8)
+  }
+  return `portal-shell-${sessionId}`
+}
+
+function getHeaders(token: string, dns: string, json = false): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    Host: dns,
+    ...(json ? { "Content-Type": "application/json" } : {}),
+  }
+}
+
+async function requestJson(
+  url: string,
+  token: string,
+  dns: string,
+  init: RequestInit = {},
+): Promise<Record<string, unknown>> {
+  const response = await fetch(url, {
+    ...init,
+    cache: "no-store",
+    headers: {
+      ...getHeaders(token, dns, init.body !== undefined),
+      ...(init.method === "PATCH" ? { "Content-Type": "application/merge-patch+json" } : {}),
+      ...(init.headers as Record<string, string> | undefined),
     },
-    spec: {
-      serviceAccountName: "default",
-      automountServiceAccountToken: false,
-      hostUsers: false,
-      volumes: [
-        {
-          name: "satoken",
-          emptyDir: {},
-        },
-        {
-          name: "ca-crt",
-          configMap: { name: "kube-root-ca.crt" },
-        },
-      ],
-      containers: [
-        {
-          name: "debug-container",
-          image,
-          command: ["sleep", "infinity"],
-          securityContext: {
-            runAsUser: 0,
-            runAsGroup: 0,
-            allowPrivilegeEscalation: true,
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "")
+    throw new Error(`${init.method ?? "GET"} ${response.status}: ${detail || response.statusText}`)
+  }
+  return (await response.json()) as Record<string, unknown>
+}
+
+async function deleteResource(url: string, token: string, dns: string): Promise<void> {
+  const response = await fetch(url, {
+    method: "DELETE",
+    cache: "no-store",
+    headers: getHeaders(token, dns),
+  })
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`DELETE ${response.status}: ${await response.text().catch(() => "")}`)
+  }
+}
+
+async function ensureSandboxNamespace(base: string, token: string, dns: string): Promise<void> {
+  const url = `${base}/api/v1/namespaces/${SANDBOX_NAMESPACE}`
+  try {
+    await requestJson(url, token, dns)
+    return
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith("GET 404")) throw error
+  }
+
+  try {
+    await requestJson(`${base}/api/v1/namespaces`, token, dns, {
+      method: "POST",
+      body: JSON.stringify({
+        apiVersion: "v1",
+        kind: "Namespace",
+        metadata: { name: SANDBOX_NAMESPACE },
+      }),
+    })
+  } catch (error) {
+    // Another controller/tab may have created it between GET and POST.
+    if (!(error instanceof Error) || !error.message.startsWith("POST 409")) throw error
+  }
+}
+
+async function ensureSandboxRuntimeClass(base: string, token: string, dns: string): Promise<void> {
+  const url = `${base}/apis/node.k8s.io/v1/runtimeclasses/${SANDBOX_RUNTIME_CLASS}`
+  try {
+    await requestJson(url, token, dns)
+    return
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith("GET 404")) throw error
+  }
+
+  try {
+    await requestJson(`${base}/apis/node.k8s.io/v1/runtimeclasses`, token, dns, {
+      method: "POST",
+      body: JSON.stringify({
+        apiVersion: "node.k8s.io/v1",
+        kind: "RuntimeClass",
+        metadata: { name: SANDBOX_RUNTIME_CLASS },
+        handler: "runsc",
+      }),
+    })
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith("POST 409")) throw error
+  }
+}
+
+function condition(status: Record<string, unknown> | undefined, type: string) {
+  const conditions = status?.conditions
+  if (!Array.isArray(conditions)) return undefined
+  return conditions.find((item) => {
+    const c = item as Record<string, unknown>
+    return c.type === type
+  }) as Record<string, unknown> | undefined
+}
+
+function isReady(status: Record<string, unknown> | undefined): boolean {
+  return condition(status, "Ready")?.status === "True"
+}
+
+function getPodName(sandbox: Record<string, unknown>): string | undefined {
+  const metadata = sandbox.metadata as Record<string, unknown> | undefined
+  const annotations = metadata?.annotations as Record<string, unknown> | undefined
+  return typeof annotations?.[POD_NAME_ANNOTATION] === "string"
+    ? annotations[POD_NAME_ANNOTATION]
+    : typeof metadata?.name === "string"
+      ? metadata.name
+      : undefined
+}
+
+function toWsUrl(url: string): string {
+  return url.replace(/^https:/, "wss:").replace(/^http:/, "ws:")
+}
+
+function tokenForSubprotocol(token: string): string {
+  return btoa(token).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_")
+}
+
+/** Writes the user's kubeconfig-in-cluster files without blocking shell startup. */
+async function injectShellCredentials(
+  base: string,
+  dns: string,
+  podNamespace: string,
+  kubectlNamespace: string,
+  podName: string,
+  token: string,
+): Promise<void> {
+  const dir = "/var/run/secrets/kubernetes.io/serviceaccount"
+  const command =
+    `mkdir -p ${dir} && ` +
+    `if [ -f /tmp/sa-ca/ca.crt ]; then cp /tmp/sa-ca/ca.crt ${dir}/ca.crt; fi && ` +
+    `printf '%s' '${token}' > ${dir}/token && ` +
+    `printf '%s' '${kubectlNamespace}' > ${dir}/namespace && ` +
+    `echo 'kube credentials: OK'`
+  const url = new URL(`${base}/api/v1/namespaces/${podNamespace}/pods/${podName}/exec`)
+  for (const value of ["sh", "-c", command]) url.searchParams.append("command", value)
+  url.searchParams.set("stdin", "false")
+  url.searchParams.set("stdout", "true")
+  url.searchParams.set("stderr", "true")
+  url.searchParams.set("tty", "false")
+
+  const socket = new WebSocket(toWsUrl(url.toString()), [
+    "v5.channel.k8s.io",
+    `base64url.bearer.authorization.k8s.io.${tokenForSubprotocol(token)}`,
+  ])
+  socket.binaryType = "arraybuffer"
+
+  await new Promise<void>((resolve, reject) => {
+    let output = ""
+    const timeout = setTimeout(() => {
+      socket.close()
+      reject(new Error("Timed out injecting kube credentials"))
+    }, 15_000)
+    const finish = (error?: Error) => {
+      clearTimeout(timeout)
+      if (error) reject(error)
+      else resolve()
+    }
+    socket.onmessage = (event) => {
+      const data = new Uint8Array(event.data as ArrayBuffer)
+      output += new TextDecoder().decode(data.slice(1))
+      if (output.includes("kube credentials: OK")) {
+        finish()
+        socket.close()
+      }
+    }
+    socket.onerror = () => finish(new Error("WebSocket error injecting kube credentials"))
+    socket.onclose = () => {
+      if (output.includes("kube credentials: OK")) finish()
+      else finish(new Error(output.trim() || "Credential injection failed"))
+    }
+  })
+}
+
+interface SandboxHandle {
+  name: string
+  namespace: string
+  podName: string
+}
+
+interface SandboxLease {
+  handle: SandboxHandle
+  base: string
+  dns: string
+  timer: ReturnType<typeof setInterval> | null
+}
+
+let activeLease: SandboxLease | null = null
+
+async function renewLease(): Promise<void> {
+  if (!activeLease) return
+  const token = useAuthStore.getState().accessToken
+  if (!token) return
+  const { handle, base, dns } = activeLease
+  await fetch(`${base}/apis/${SANDBOX_API}/namespaces/${handle.namespace}/${SANDBOX_RESOURCE}/${handle.name}`, {
+    method: "PATCH",
+    cache: "no-store",
+    headers: {
+      ...getHeaders(token, dns),
+      "Content-Type": "application/merge-patch+json",
+    },
+    body: JSON.stringify({
+      spec: { shutdownTime: shutdownTime(), shutdownPolicy: "Delete" },
+    }),
+  }).catch(() => {
+    // A later renewal can recover from a transient API failure. The existing
+    // deadline remains the safety net if the browser stays disconnected.
+  })
+}
+
+function startLease(handle: SandboxHandle, base: string, dns: string): void {
+  if (activeLease?.timer) clearInterval(activeLease.timer)
+  const timer = setInterval(() => { void renewLease() }, SANDBOX_LEASE_RENEWAL_MS)
+  activeLease = { handle, base, dns, timer }
+}
+
+function pauseLeaseRenewal(): void {
+  if (!activeLease?.timer) return
+  clearInterval(activeLease.timer)
+  activeLease.timer = null
+}
+
+function resumeLeaseRenewal(): void {
+  if (!activeLease || activeLease.timer) return
+  activeLease.timer = setInterval(() => { void renewLease() }, SANDBOX_LEASE_RENEWAL_MS)
+}
+
+async function expireActiveLease(): Promise<void> {
+  const lease = activeLease
+  if (!lease) return
+  activeLease = null
+  if (lease.timer) clearInterval(lease.timer)
+  const token = useAuthStore.getState().accessToken
+  if (!token) return
+  await deleteResource(
+    `${lease.base}/apis/${SANDBOX_API}/namespaces/${lease.handle.namespace}/${SANDBOX_RESOURCE}/${lease.handle.name}`,
+    token,
+    lease.dns,
+  ).catch(() => {})
+}
+
+if (typeof window !== "undefined") {
+  // Stop renewing on tab close/navigation. The last shutdownTime then expires
+  // naturally; this deliberately does not rely on an unload request succeeding.
+  window.addEventListener("pagehide", pauseLeaseRenewal)
+  window.addEventListener("pageshow", resumeLeaseRenewal)
+}
+
+async function waitForSandbox(
+  base: string,
+  token: string,
+  dns: string,
+  name: string,
+  isAborted: () => boolean,
+): Promise<string> {
+  const url = `${base}/apis/${SANDBOX_API}/namespaces/${SANDBOX_NAMESPACE}/${SANDBOX_RESOURCE}/${name}`
+  const deadline = Date.now() + READY_TIMEOUT_MS
+
+  while (Date.now() < deadline) {
+    if (isAborted()) throw new Error("Sandbox startup cancelled")
+    const object = await requestJson(`${url}?shellCheck=${Date.now()}`, token, dns)
+    const status = object.status as Record<string, unknown> | undefined
+
+    if (isReady(status)) {
+      const podName = getPodName(object)
+      if (podName) return podName
+    }
+
+    const ready = condition(status, "Ready")
+    if (ready?.status === "False" && ["InvalidConfiguration", "PodFailed", "PodSucceeded", "ClaimExpired", "SandboxExpired"].includes(String(ready.reason))) {
+      throw new Error(String(ready.message ?? `Sandbox ${name} failed to become ready`))
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+  throw new Error("Timed out waiting for sandbox to become ready")
+}
+
+async function createSandbox(
+  base: string,
+  token: string,
+  dns: string,
+  name: string,
+  isAborted: () => boolean,
+): Promise<SandboxHandle> {
+  const sandboxUrl = `${base}/apis/${SANDBOX_API}/namespaces/${SANDBOX_NAMESPACE}/${SANDBOX_RESOURCE}/${name}`
+
+  // Re-open the same browser-session Sandbox when the dock is remounted.
+  try {
+    const sandbox = await requestJson(sandboxUrl, token, dns)
+    const sandboxSpec = sandbox.spec as Record<string, unknown> | undefined
+    const sandboxPodTemplate = sandboxSpec?.podTemplate as Record<string, unknown> | undefined
+    const sandboxPodSpec = sandboxPodTemplate?.spec as Record<string, unknown> | undefined
+    const sandboxEnv = Array.isArray(sandboxPodSpec?.env) ? sandboxPodSpec.env : []
+    if (!sandboxEnv.some((item) => (item as Record<string, unknown>)?.name === "PS1")) {
+      await requestJson(sandboxUrl, token, dns, {
+        method: "PATCH",
+        body: JSON.stringify({
+          spec: {
+            podTemplate: {
+              spec: {
+                env: [
+                  { name: "HOME", value: "/workspace" },
+                  { name: "PS1", value: "sandbox@\\h:\\w\\$ " },
+                ],
+              },
+            },
           },
-          imagePullPolicy: "IfNotPresent",
-          volumeMounts: [
-            {
-              name: "satoken",
-              mountPath: "/var/run/secrets/kubernetes.io/serviceaccount",
-            },
-            {
-              name: "ca-crt",
-              mountPath: "/tmp/sa-ca",
-            },
-          ],
-        },
+          shutdownTime: shutdownTime(),
+          shutdownPolicy: "Delete",
+        }),
+      })
+    } else {
+      // Sandbox lifecycle fields are inline on SandboxSpec (unlike the
+      // nested lifecycle object on SandboxClaim).
+      await requestJson(sandboxUrl, token, dns, {
+        method: "PATCH",
+        body: JSON.stringify({ spec: { shutdownTime: shutdownTime(), shutdownPolicy: "Delete" } }),
+      })
+    }
+    return {
+      name,
+      namespace: SANDBOX_NAMESPACE,
+      podName: await waitForSandbox(base, token, dns, name, isAborted),
+    }
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith("GET 404")) throw error
+  }
+
+  const lifecycle = { shutdownTime: shutdownTime(), shutdownPolicy: "Delete" }
+  const podSpec = {
+    runtimeClassName: "gvisor",
+    automountServiceAccountToken: false,
+    containers: [{
+      name: "sandboxd",
+      image: "ghcr.io/kubehub-io/portal-sandboxd:main-20261013-2",
+      imagePullPolicy: "IfNotPresent",
+      env: [
+        { name: "HOME", value: "/workspace" },
+        { name: "PS1", value: "sandbox@\\h:\\w\\$ " },
       ],
-    },
+      ports: [{ containerPort: 8080, protocol: "TCP" }, { containerPort: 9090, protocol: "TCP" }],
+      readinessProbe: { httpGet: { path: "/v1/health", port: 8080 } },
+      resources: { requests: { cpu: "250m", "ephemeral-storage": "1Gi", memory: "512Mi" } },
+      securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] }, runAsGroup: 1000, runAsNonRoot: true, runAsUser: 1000 },
+      volumeMounts: [
+        { name: "workspace", mountPath: "/workspace" },
+        { name: "satoken", mountPath: "/var/run/secrets/kubernetes.io/serviceaccount" },
+        { name: "ca-crt", mountPath: "/tmp/sa-ca", readOnly: true },
+      ],
+    }],
+    restartPolicy: "OnFailure",
+    securityContext: { fsGroup: 0, runAsNonRoot: false, runAsUser: 0, runAsGroup: 0 },
+    volumes: [{ name: "workspace", emptyDir: {} }, { name: "satoken", emptyDir: {} }, { name: "ca-crt", configMap: { name: "kube-root-ca.crt" } }],
   }
-  if (nodeName) {
-    const podSpec = spec["spec"] as Record<string, unknown>
-    podSpec.nodeName = nodeName
+  const sandboxCollectionUrl = `${base}/apis/${SANDBOX_API}/namespaces/${SANDBOX_NAMESPACE}/${SANDBOX_RESOURCE}`
+  try {
+    await requestJson(sandboxCollectionUrl, token, dns, {
+      method: "POST",
+      body: JSON.stringify({
+        apiVersion: SANDBOX_API,
+        kind: "Sandbox",
+        metadata: { name, namespace: SANDBOX_NAMESPACE },
+        spec: {
+          podTemplate: { spec: podSpec },
+          failedPodPolicy: "Retain",
+          operatingMode: "Running",
+          ...lifecycle,
+        },
+      }),
+    })
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith("POST 409")) throw error
   }
-  return spec
+  return {
+    name,
+    namespace: SANDBOX_NAMESPACE,
+    podName: await waitForSandbox(base, token, dns, name, isAborted),
+  }
 }
 
 export type ClusterShellPhase =
   | "idle"
   | "checking"
-  | "recreating"
   | "creating"
   | "waiting"
-  | "writing-token"
   | "ready"
+  | "disabled"
   | "error"
 
 interface ClusterShellState {
@@ -85,483 +434,80 @@ interface ClusterShellState {
   namespace: string
 }
 
-function getK8sHost(dns: string): string {
-  return `https://${dns}:8443`
-}
-
-function toWsUrl(url: string): string {
-  return url.replace(/^https:/, "wss:").replace(/^http:/, "ws:")
-}
-
-const PROXY_ERROR_RE = /proxy error from konnect-srv.*?while dialing (\d+\.\d+\.\d+\.\d+):10250/
-const NO_NODE_ERROR_RE = /serviceaccount\s+"[^"]*"\s+not found/
-
-function formatError(msg: string, nodeName?: string): string {
-  const proxyMatch = msg.match(PROXY_ERROR_RE)
-  if (proxyMatch) {
-    const ip = proxyMatch[1]
-    if (nodeName) {
-      return `node ${nodeName} (${ip}) not reachable.`
-    }
-    return `node ${ip} not reachable.`
-  }
-  if (NO_NODE_ERROR_RE.test(msg)) {
-    return "Cluster has no active nodes — shell requires at least one node."
-  }
-  return msg
-}
-
-function base64url(token: string): string {
-  return btoa(token).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_")
-}
-
-export async function updateShellPodToken(
-  dns: string,
-  namespace: string,
-  podName: string,
-  token: string,
-): Promise<void> {
-  const host = getK8sHost(dns)
-  const dir = "/var/run/secrets/kubernetes.io/serviceaccount"
-
-  const escapedToken = `'${token}'`
-  const cmd =
-    `echo '--- updating serviceaccount token ---' && ` +
-    `printf '%s' ${escapedToken} > ${dir}/token && ` +
-    `echo 'token: OK'`
-
-  const url = new URL(`${host}/api/v1/namespaces/${namespace}/pods/${podName}/exec`)
-  url.searchParams.append("command", "sh")
-  url.searchParams.append("command", "-c")
-  url.searchParams.append("command", cmd)
-  url.searchParams.set("stdin", "false")
-  url.searchParams.set("stdout", "true")
-  url.searchParams.set("stderr", "true")
-  url.searchParams.set("tty", "false")
-
-  const wsUrl = toWsUrl(url.toString())
-  const ws = new WebSocket(wsUrl, [
-    "v5.channel.k8s.io",
-    `base64url.bearer.authorization.k8s.io.${base64url(token)}`,
-  ])
-
-  ws.binaryType = "arraybuffer"
-
-  return new Promise((resolve, reject) => {
-    let output = ""
-    let settled = false
-    const finish = (error?: Error) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      if (error) reject(error)
-      else resolve()
-    }
-
-    ws.onmessage = (event) => {
-      const data = new Uint8Array(event.data as ArrayBuffer)
-      const channel = data[0]
-      const text = new TextDecoder().decode(data.slice(1))
-      if (channel >= 1 && channel <= 3) {
-        output += text
-      }
-      if (channel === 3) {
-        try {
-          const status = JSON.parse(text) as { status?: string; message?: string }
-          if (status.status === "Success") {
-            finish()
-            ws.close()
-            return
-          }
-          if (status.status === "Failure") {
-            finish(new Error(status.message || "Exec command failed"))
-            ws.close()
-            return
-          }
-        } catch {
-          // Some API/proxy versions send a plain-text status frame.
-        }
-      }
-      if (output.includes("token: OK")) {
-        finish()
-        ws.close()
-      }
-    }
-
-    const timeout = setTimeout(() => {
-      ws.close()
-      finish(new Error("Timeout updating token in pod"))
-    }, 15_000)
-
-    ws.onclose = () => {
-      if (output.includes("token: OK")) {
-        finish()
-      } else {
-        finish(new Error(output.trim() || "Unknown error updating token"))
-      }
-    }
-
-    ws.onerror = () => {
-      finish(new Error("WebSocket error while updating token"))
-    }
-  })
-}
-
-export function useClusterShell(nodeName?: string) {
-  const spec = useMemo(() => getDefaultPodSpec(nodeName), [nodeName])
-  const meta = spec["metadata"] as Record<string, unknown> | undefined
-  const podName = (meta?.["name"] as string) ?? "shell-pod"
-  const namespace = (meta?.["namespace"] as string) ?? "default"
-
+export function useClusterShell() {
   const [state, setState] = useState<ClusterShellState>({
     phase: "idle",
     error: null,
-    podName,
-    namespace,
+    podName: "",
+    namespace: SANDBOX_NAMESPACE,
   })
-
-  const [podNodeName, setPodNodeName] = useState<string | null>(null)
-
+  const [podNodeName] = useState<string | null>(null)
   const startedRef = useRef(false)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortRef = useRef(false)
-  const prevNodeNameRef = useRef(nodeName)
+  const handleRef = useRef<SandboxHandle | null>(null)
 
   const start = useCallback(async () => {
     if (startedRef.current) return
     startedRef.current = true
     abortRef.current = false
-
     const cluster = useClusterStore.getState().activeCluster
     const token = useAuthStore.getState().accessToken
     if (!cluster || !token) {
       setState((s) => ({ ...s, phase: "error", error: "No active cluster or not authenticated" }))
       return
     }
-
-    const dns = cluster.status.publicDns
-    const host = getK8sHost(dns)
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      Host: dns,
-      "Content-Type": "application/json",
+    const enabledControllers = cluster.spec.managedControllerProfile?.enabledControllers ?? []
+    if (!enabledControllers.includes("agent-sandbox")) {
+      setState((s) => ({
+        ...s,
+        phase: "disabled",
+        error: "Enable the Agent Sandbox managed controller in Cluster Settings to use the shell.",
+      }))
+      return
     }
 
     try {
       setState((s) => ({ ...s, phase: "checking", error: null }))
-
-      // Step 1: Ensure pod exists with the current spec version and nodeName
-      const podsUrl = `${host}/api/v1/namespaces/${namespace}/pods`
-      const podUrl = `${podsUrl}/${podName}`
-
-      // Check nodes in parallel to detect clusters with no active nodes
-      const nodeUrl = `${host}/api/v1/nodes`
-
-      let podReady = false
-      let podAlreadyRunning = false
-      let checkedPodNodeName: string | undefined
-      while (!podReady) {
-        if (abortRef.current) return
-
-        const [getRes, nodeRes] = await Promise.all([
-          // Pod phase is deliberately polled; never allow the browser or an
-          // intermediary cache to return the first Pending response forever.
-          fetch(`${podUrl}?shellCheck=${Date.now()}`, { headers, cache: "no-store" }),
-          fetch(nodeUrl, { headers, cache: "no-store" }),
-        ])
-
-        if (getRes.status === 404) {
-          // Create pod
-          setState((s) => ({ ...s, phase: "creating" }))
-          const createRes = await fetch(podsUrl, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(spec),
-          })
-          if (!createRes.ok) {
-            const errBody = await createRes.text()
-            throw new Error(`Failed to create pod: ${createRes.status} ${errBody}`)
-          }
-          podReady = true
-        } else if (!getRes.ok) {
-          // If the pod check fails, check if the cluster has no nodes
-          if (nodeRes.ok) {
-            const nodeList = await nodeRes.json() as { items?: unknown[] }
-            if (!nodeList.items || nodeList.items.length === 0) {
-              throw new Error("Cluster has no active nodes — shell requires at least one node.")
-            }
-          }
-          throw new Error(`Failed to check pod: ${getRes.status}`)
-        } else {
-          // Pod exists — check spec version and nodeName match
-          const existing = (await getRes.json()) as {
-            metadata?: { annotations?: Record<string, string> }
-            spec?: { nodeName?: string }
-            status?: { phase?: string }
-          }
-          const existingVersion = existing?.metadata?.annotations?.["shell.kubehub.io/spec-version"]
-          const existingNodeName = existing?.spec?.nodeName
-          const desiredNodeName = nodeName || undefined
-          const versionMatch = existingVersion === getWebShellConfig().specVersion
-          const nodeMatch = !desiredNodeName || existingNodeName === desiredNodeName
-
-          if (versionMatch && nodeMatch) {
-            podReady = true
-            checkedPodNodeName = existingNodeName
-            // Do not throw away the status from the check we just made. In
-            // particular, an already-running shell pod should go straight to
-            // credential setup instead of waiting for a second polling loop.
-            podAlreadyRunning = existing.status?.phase === "Running"
-          } else {
-            // Delete outdated pod and loop back to create
-            setState((s) => ({ ...s, phase: "recreating" }))
-            const delRes = await fetch(podUrl, { method: "DELETE", headers })
-            if (!delRes.ok) {
-              const errBody = await delRes.text()
-              throw new Error(`Failed to delete outdated pod: ${delRes.status} ${errBody}`)
-            }
-            // Wait for actual deletion
-            for (;;) {
-              if (abortRef.current) return
-              const checkRes = await fetch(podUrl, { headers, cache: "no-store" })
-              if (checkRes.status === 404) break
-              await new Promise((r) => setTimeout(r, 1000))
-            }
-          }
-        }
-      }
-
-      // Step 2: Wait for pod to be Running
-      setState((s) => ({ ...s, phase: "waiting" }))
-
-      const running =
-        podAlreadyRunning ||
-        (await waitForPodRunning(dns, namespace, podName, token, () => abortRef.current))
-      if (!running) return
-
-      // Fetch node name for better error messages and display
-       // The initial pod check already contains spec.nodeName for an existing
-       // pod. Reuse it so credential injection cannot be blocked by a second
-       // status GET before the exec WebSocket is opened.
-       const pnn = checkedPodNodeName ?? await getPodNodeName(dns, namespace, podName, token)
-      setPodNodeName(pnn ?? null)
-
-       // Step 3: Write CA cert, namespace, and access token into the pod.
-       // This is a convenience operation and must not block the interactive
-       // shell. Some API proxies keep exec WebSockets open after the command
-       // completes, so waiting here can leave the whole panel stuck forever.
-       setState((s) => ({ ...s, phase: "ready", error: null }))
-       void writeFilesToPod(dns, namespace, podName, token, pnn, () => abortRef.current).catch((err) => {
-         if (abortRef.current) return
-         setState((s) => ({
-           ...s,
-           phase: "ready",
-           error: `Shell connected, but credentials could not be injected: ${
-             err instanceof Error ? err.message : String(err)
-           }`,
-         }))
-       })
-
-       if (abortRef.current) return
-    } catch (err) {
+      const base = getK8sApiBase(cluster)
+      await ensureSandboxNamespace(base, token, cluster.status.publicDns)
+      await ensureSandboxRuntimeClass(base, token, cluster.status.publicDns)
+      const name = shellName()
+      setState((s) => ({ ...s, phase: "creating" }))
+      const handle = await createSandbox(base, token, cluster.status.publicDns, name, () => abortRef.current)
+      handleRef.current = handle
       if (abortRef.current) return
-      const msg = err instanceof Error ? err.message : String(err)
+      startLease(handle, base, cluster.status.publicDns)
+      setState({ phase: "ready", error: null, podName: handle.podName, namespace: handle.namespace })
+      void injectShellCredentials(
+        base,
+        cluster.status.publicDns,
+        handle.namespace,
+        useClusterStore.getState().activeNamespace === "__all"
+          ? "default"
+          : useClusterStore.getState().activeNamespace || "default",
+        handle.podName,
+        token,
+      ).catch(() => {})
+    } catch (error) {
+      if (abortRef.current) return
       setState((s) => ({
         ...s,
         phase: "error",
-        error: formatError(msg),
+        error: error instanceof Error ? error.message : String(error),
       }))
     }
-  }, [podName, namespace, spec, nodeName])
+  }, [])
 
-  // Auto-restart when nodeName changes
-  useEffect(() => {
-    if (prevNodeNameRef.current !== nodeName) {
-      prevNodeNameRef.current = nodeName
-      abortRef.current = true
-      startedRef.current = false
-      start()
-    }
-  }, [nodeName, start])
-
-  useEffect(() => {
-    return () => {
-      abortRef.current = true
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
+  const cleanup = useCallback(async () => {
+    abortRef.current = true
+    handleRef.current = null
+    await expireActiveLease()
   }, [])
 
   const retry = useCallback(() => {
     startedRef.current = false
-    start()
+    void start()
   }, [start])
 
-  return { ...state, start, retry, podNodeName }
-}
-
-async function waitForPodRunning(
-  dns: string,
-  namespace: string,
-  podName: string,
-  token: string,
-  isAborted: () => boolean,
-): Promise<boolean> {
-  const host = getK8sHost(dns)
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    Host: dns,
-  }
-
-  const deadline = Date.now() + 120_000
-
-  while (Date.now() < deadline) {
-    if (isAborted()) return false
-
-    // `no-store` prevents browser caching, while the nonce also bypasses
-    // caches in front of the Kubernetes API. Without both, a cached Pending
-    // response can make this loop appear to stop polling entirely.
-    const url = `${host}/api/v1/namespaces/${namespace}/pods/${podName}?shellPoll=${Date.now()}`
-    const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 15_000)
-    const res = await fetch(url, {
-      headers,
-      cache: "no-store",
-      signal: controller.signal,
-    })
-    window.clearTimeout(timeout)
-    if (!res.ok) throw new Error(`Failed to get pod status: ${res.status}`)
-
-    const pod = (await res.json()) as { status?: { phase?: string } }
-    const phase = pod.status?.phase
-
-    if (phase === "Running") return true
-    if (phase === "Failed" || phase === "Unknown") {
-      throw new Error(`Pod entered phase: ${phase}`)
-    }
-
-    await new Promise((r) => setTimeout(r, 1000))
-  }
-
-  throw new Error("Timed out waiting for pod to be Running")
-}
-
-async function getPodNodeName(dns: string, namespace: string, podName: string, token: string): Promise<string | undefined> {
-  const host = getK8sHost(dns)
-  const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), 15_000)
-  const res = await fetch(`${host}/api/v1/namespaces/${namespace}/pods/${podName}`, {
-    headers: { Authorization: `Bearer ${token}`, Host: dns },
-    cache: "no-store",
-    signal: controller.signal,
-  })
-  window.clearTimeout(timeout)
-  if (!res.ok) return undefined
-  const pod = await res.json() as { spec?: { nodeName?: string } }
-  return pod.spec?.nodeName
-}
-
-async function writeFilesToPod(
-  dns: string,
-  namespace: string,
-  podName: string,
-  token: string,
-  nodeName: string | undefined,
-  isAborted: () => boolean,
-): Promise<void> {
-  const host = getK8sHost(dns)
-  const dir = "/var/run/secrets/kubernetes.io/serviceaccount"
-
-  if (isAborted()) throw new Error("Aborted")
-
-  const escapedToken = `'${token}'`
-  const cmd =
-    `echo '--- setting up serviceaccount ---' && ` +
-    `cp /tmp/sa-ca/ca.crt ${dir}/ca.crt && ` +
-    `echo 'ca.crt: OK' && ` +
-    `printf 'default' > ${dir}/namespace && ` +
-    `echo 'namespace: OK' && ` +
-    `echo 'token: writing...' && ` +
-    `printf '%s' ${escapedToken} > ${dir}/token && ` +
-    `echo 'token: OK'`
-
-  const url = new URL(`${host}/api/v1/namespaces/${namespace}/pods/${podName}/exec`)
-  url.searchParams.append("command", "sh")
-  url.searchParams.append("command", "-c")
-  url.searchParams.append("command", cmd)
-  url.searchParams.set("stdin", "false")
-  url.searchParams.set("stdout", "true")
-  url.searchParams.set("stderr", "true")
-  url.searchParams.set("tty", "false")
-
-  const wsUrl = toWsUrl(url.toString())
-  const ws = new WebSocket(wsUrl, [
-    "v5.channel.k8s.io",
-    `base64url.bearer.authorization.k8s.io.${base64url(token)}`,
-  ])
-
-  ws.binaryType = "arraybuffer"
-
-  return new Promise((resolve, reject) => {
-    let output = ""
-    let settled = false
-    const finish = (error?: Error) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      if (error) reject(error)
-      else resolve()
-    }
-
-    ws.onmessage = (event) => {
-      const data = new Uint8Array(event.data as ArrayBuffer)
-      const channel = data[0]
-      const text = new TextDecoder().decode(data.slice(1))
-      if (channel >= 1 && channel <= 3) {
-        output += text
-      }
-      if (channel === 3) {
-        try {
-          const status = JSON.parse(text) as { status?: string; message?: string }
-          if (status.status === "Success") {
-            finish()
-            ws.close()
-            return
-          }
-          if (status.status === "Failure") {
-            finish(new Error(formatError(status.message || "Exec command failed", nodeName)))
-            ws.close()
-            return
-          }
-        } catch {
-          // Some API/proxy versions send a plain-text status frame.
-        }
-      }
-      // The exec endpoint may keep the WebSocket open after the command has
-      // completed. The success marker is the command-level completion signal;
-      // do not wait forever for the server to close the stream.
-      if (output.includes("token: OK")) {
-        finish()
-        ws.close()
-      }
-    }
-
-    const timeout = setTimeout(() => {
-      ws.close()
-      finish(new Error(formatError(output.trim() || "Timeout writing files to pod", nodeName)))
-    }, 15_000)
-
-    ws.onclose = () => {
-      if (!settled && !isAborted()) {
-        if (output.includes("token: OK")) {
-          finish()
-        } else {
-          finish(new Error(formatError(output.trim() || "Unknown error", nodeName)))
-        }
-      }
-    }
-
-    ws.onerror = () => {
-      finish(new Error(formatError(output.trim() || "WebSocket error while writing files", nodeName)))
-    }
-  })
+  return { ...state, start, retry, podNodeName, cleanup }
 }
