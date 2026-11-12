@@ -3,13 +3,13 @@
 import { useState } from "react"
 import { DataTable } from "@/components/resources/data-table"
 import { HttpRouteRules } from "@/components/resources/http-route-details"
+import { HostnameList } from "@/components/resources/hostname-list"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import { type ResourceDescriptor } from "@/lib/api/k8s-client"
-import { CheckCircle, XCircle } from "lucide-react"
 
 interface HubHttpRouteBackendRef {
   name?: string
@@ -79,31 +79,7 @@ export default function HubHttpRoutesPage() {
       label: "Hostname",
       render: (_v: unknown, item: Record<string, unknown>) => {
         const r = item as unknown as HubHttpRoute
-        const hostname = r.status?.hostname ?? r.spec?.hostnames?.[0] ?? "-"
-        const ready = (r.status?.conditions ?? []).some(
-          (c) => c.type === "DNSReady" && c.status === "True",
-        )
-        return (
-          <span className="flex items-center gap-1.5 text-xs">
-            {ready ? (
-              <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-            ) : (
-              <XCircle className="h-3.5 w-3.5 text-red-600" />
-            )}
-            {ready && hostname !== "-" ? (
-              <a
-                href={`https://${hostname}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline underline-offset-2"
-              >
-                {hostname}
-              </a>
-            ) : (
-              hostname
-            )}
-          </span>
-        )
+        return <HostnameList names={r.status?.hostname ?? r.spec?.hostnames} />
       },
     },
     {

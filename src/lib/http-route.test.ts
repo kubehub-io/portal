@@ -47,6 +47,23 @@ describe("http route helpers", () => {
     ])
   })
 
+  it("maps the HubHttpRoute rule shape as well", () => {
+    expect(
+      getHttpRouteRuleLines({
+        apiVersion: "gateway.kubehub.io/v1alpha1",
+        kind: "HubHttpRoute",
+        spec: {
+          rules: [
+            {
+              matches: [{ path: { type: "PathPrefix", value: "/" } }],
+              backendRefs: [{ name: "samplewebapp", port: 80 }],
+            },
+          ],
+        },
+      }),
+    ).toEqual([{ match: "/", backend: "samplewebapp:80" }])
+  })
+
   it("expands multiple matches and backends", () => {
     const lines = getHttpRouteRuleLines({
       spec: {

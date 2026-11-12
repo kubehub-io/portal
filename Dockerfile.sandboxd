@@ -8,14 +8,17 @@ USER root
 # Set by BuildKit; docker only ever asks for the host architecture, so the
 # default keeps a plain `docker build` working outside CI.
 ARG TARGETARCH=amd64
-ARG KUBECTL_VERSION=v1.36.0
-ARG HELM_VERSION=v3.16.3
+ARG KUBECTL_VERSION=1.36.6
+ARG HELM_VERSION=3.22.1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
+        dnsutils \
         jq \
+        vim \
+        tmux \
         yq \
         netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
@@ -23,7 +26,7 @@ RUN apt-get update \
 # helm ships a tarball per architecture. Installing rather than copying out of a
 # builder stage keeps this a single-layer image with no extra build context.
 RUN set -eux; \
-    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${TARGETARCH}.tar.gz" \
+    curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION#v}-linux-${TARGETARCH}.tar.gz" \
         | tar -xz -C /tmp; \
     install -m 0755 "/tmp/linux-${TARGETARCH}/helm" /usr/local/bin/helm; \
     rm -rf "/tmp/linux-${TARGETARCH}"
@@ -31,16 +34,54 @@ RUN set -eux; \
 # kubectl is a static binary and is what the uploaded kubeconfig is for.
 RUN set -eux; \
     curl -fsSL -o /usr/local/bin/kubectl \
-        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl"; \
+        "https://dl.k8s.io/release/v${KUBECTL_VERSION#v}/bin/linux/${TARGETARCH}/kubectl"; \
     chmod 0755 /usr/local/bin/kubectl
+
+# Short aliases used by the web shell.
+RUN ln -sf /usr/local/bin/kubectl /usr/local/bin/k \
+    && ln -sf /usr/local/bin/helm /usr/local/bin/h
+
+# Cilium CLI.
+RUN set -eux; \
+    CILIUM_CLI_VERSION="$(curl -fsSL https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)"; \
+    curl -L --fail --retry 3 \
+        "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${TARGETARCH}.tar.gz" \
+        -o /tmp/cilium.tar.gz; \
+    tar -xzf /tmp/cilium.tar.gz -C /usr/local/bin; \
+    rm /tmp/cilium.tar.gz
+
+# KubeHub CLI.
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+        amd64) CLI_ARCH=x86_64 ;; \
+        arm64) CLI_ARCH=arm64 ;; \
+        *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    VERSION="$(curl -fsSL https://api.github.com/repos/kubehub-io/cli/releases/latest \
+        | sed -n 's/.*"tag_name": "\(.*\)",/\1/p')"; \
+    test -n "${VERSION}"; \
+    curl -fsSL -o /usr/bin/kubehubcli \
+        "https://github.com/kubehub-io/cli/releases/download/${VERSION}/cli_Linux_${CLI_ARCH}"; \
+    chmod 0755 /usr/bin/kubehubcli
 
 # Verified at build time: a broken download or a missing architecture fails the
 # build rather than surfacing later as an unexplained tool error in a sandbox.
 RUN set -eux; \
     kubectl version --client=true; \
     helm version --short; \
+    cilium version; \
+    kubehubcli --help >/dev/null; \
     curl --version >/dev/null; \
     nc -h 2>&1 | head -1
+
+# The SandboxTemplate runs the container as UID/GID 1000. Some sandboxd base
+# images do not contain a matching passwd/group entry, which makes the shell
+# prompt display "I have no name!" and leaves HOME/ownership resolution broken.
+RUN set -eux; \
+    if ! getent group 1000 >/dev/null; then echo 'sandboxd:x:1000:' >> /etc/group; fi; \
+    if ! getent passwd 1000 >/dev/null; then echo 'sandboxd:x:1000:1000::/workspace:/bin/bash' >> /etc/passwd; fi; \
+    mkdir -p /workspace; \
+    chown 1000:1000 /workspace
 
 USER 1000
 

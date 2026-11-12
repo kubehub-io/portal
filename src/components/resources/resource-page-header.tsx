@@ -34,6 +34,7 @@ export function ResourcePageHeader({
         <p className="text-muted-foreground">{subtitle}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        {actions}
         <Button
           variant="outline"
           size="icon"
@@ -44,16 +45,11 @@ export function ResourcePageHeader({
         >
           <RefreshCw className={isFetching ? "animate-spin" : ""} />
         </Button>
-        {actions}
-        <a
-          href={docsHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-primary underline underline-offset-2"
-        >
-          <BookOpen className="h-4 w-4" />
-          Docs
-        </a>
+        <Button variant="outline" size="icon" asChild>
+          <a href={docsHref} target="_blank" rel="noopener noreferrer" aria-label="Documentation" title="Documentation">
+            <BookOpen className="h-4 w-4" />
+          </a>
+        </Button>
       </div>
     </div>
   )

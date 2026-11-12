@@ -42,14 +42,10 @@ describe("ClusterShell", () => {
     })
   }
 
-  it("keeps the target node selector and node warning on one compact row", async () => {
+  it("describes the browser-session sandbox lifecycle", async () => {
     renderShell()
 
-    const targetNodeRow = screen.getByText(/Target node:/i).closest("div")
-    expect(targetNodeRow).toBeInTheDocument()
-    expect(targetNodeRow).toHaveTextContent(/Requires at least one node onboarded/i)
-    expect(targetNodeRow).toHaveTextContent(/temporary shell pod/i)
-    expect(targetNodeRow).toHaveTextContent(/lost when the pod restarts/i)
-    expect(screen.queryByText(/temporary shell pod/i)?.closest("div")).toBe(targetNodeRow)
+    expect(screen.getByText(/Agent Sandbox shell/i)).toBeInTheDocument()
+    expect(screen.getByText(/same sandbox pod is reused while this browser tab remains open/i)).toBeInTheDocument()
   })
 })
