@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react"
 import { getK8sApiBase } from "@/lib/api/k8s-client"
+import { getConfig } from "@/lib/config"
 import { useAuthStore } from "@/stores/auth-store"
 import { useClusterStore } from "@/stores/cluster-store"
 
@@ -16,6 +17,7 @@ const POD_NAME_ANNOTATION = "agents.x-k8s.io/pod-name"
 const SANDBOX_LEASE_SECONDS = 5 * 60
 const SANDBOX_LEASE_RENEWAL_MS = 60_000
 const READY_TIMEOUT_MS = 120_000
+const DEFAULT_SANDBOX_IMAGE = "ghcr.io/kubehub-io/portal-sandboxd:main-20261013-2"
 
 function shutdownTime(): string {
   return new Date(Date.now() + SANDBOX_LEASE_SECONDS * 1000).toISOString()
@@ -320,6 +322,7 @@ async function createSandbox(
   token: string,
   dns: string,
   name: string,
+  image: string,
   isAborted: () => boolean,
 ): Promise<SandboxHandle> {
   const sandboxUrl = `${base}/apis/${SANDBOX_API}/namespaces/${SANDBOX_NAMESPACE}/${SANDBOX_RESOURCE}/${name}`
@@ -372,7 +375,7 @@ async function createSandbox(
     automountServiceAccountToken: false,
     containers: [{
       name: "sandboxd",
-      image: "ghcr.io/kubehub-io/portal-sandboxd:main-20261013-2",
+      image,
       imagePullPolicy: "IfNotPresent",
       env: [
         { name: "HOME", value: "/workspace" },
@@ -472,8 +475,10 @@ export function useClusterShell() {
       await ensureSandboxNamespace(base, token, cluster.status.publicDns)
       await ensureSandboxRuntimeClass(base, token, cluster.status.publicDns)
       const name = shellName()
+      const config = await getConfig()
+      const image = config.webShellConfig?.sandboxImage ?? DEFAULT_SANDBOX_IMAGE
       setState((s) => ({ ...s, phase: "creating" }))
-      const handle = await createSandbox(base, token, cluster.status.publicDns, name, () => abortRef.current)
+      const handle = await createSandbox(base, token, cluster.status.publicDns, name, image, () => abortRef.current)
       handleRef.current = handle
       if (abortRef.current) return
       startLease(handle, base, cluster.status.publicDns)

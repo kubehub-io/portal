@@ -37,6 +37,10 @@ export interface NavItem {
    * no Kubernetes plural and are never resolved from discovery.
    */
   k8sPlural?: string
+  /** Exact discovered resource identity for curated pages. */
+  k8sGroup?: string
+  k8sVersion?: string
+  k8sKind?: string
 }
 
 export interface NavGroup {
@@ -108,7 +112,16 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "services", label: "Services", href: "/dashboard/services", icon: Network, k8sPlural: "services" },
       { id: "endpointslices", label: "EndpointSlices", href: "/dashboard/endpointslices", icon: Share2, k8sPlural: "endpointslices" },
-      { id: "hubhttproutes", label: "HubHttpRoutes", href: "/dashboard/hubhttproutes", icon: Route, k8sPlural: "hubhttproutes" },
+      {
+        id: "hubhttproutes",
+        label: "HubHttpRoutes",
+        href: "/dashboard/hubhttproutes",
+        icon: Route,
+        k8sPlural: "hubhttproutes",
+        k8sGroup: "gateway.kubehub.io",
+        k8sVersion: "v1alpha1",
+        k8sKind: "HubHttpRoute",
+      },
     ],
   },
   {
@@ -141,6 +154,16 @@ export function getNavItem(id: string): NavItem | undefined {
 /** Curated page that already lists `plural`, if the portal has one. */
 export function getNavItemForPlural(plural: string): NavItem | undefined {
   return NAV_ITEMS.find((item) => item.k8sPlural === plural)
+}
+
+export function getNavItemForResourceType(resource: {
+  group: string
+  version: string
+  kind: string
+}): NavItem | undefined {
+  return NAV_ITEMS.find(
+    (item) => item.k8sGroup === resource.group && item.k8sVersion === resource.version && item.k8sKind === resource.kind,
+  )
 }
 
 export function isNavItemActive(pathname: string, item: NavItem): boolean {

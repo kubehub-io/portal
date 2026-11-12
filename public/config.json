@@ -6,6 +6,7 @@
   },
   "webShellConfig": {
     "image": "ghcr.io/kubehub-io/portal-webshell:main-20260910-13",
+    "sandboxImage": "ghcr.io/kubehub-io/portal-sandboxd:main-20261112-6",
     "specVersion": "1"
   },
   "monitoringConfig": {

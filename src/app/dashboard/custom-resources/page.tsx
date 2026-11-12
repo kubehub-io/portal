@@ -30,7 +30,7 @@ import {
   resourceTypeGroupLabel,
   type ResourceTypeEntry,
 } from "@/lib/resource-types"
-import { CUSTOM_RESOURCES_TYPE_PARAM } from "@/lib/navigation"
+import { CUSTOM_RESOURCES_TYPE_PARAM, getNavItemForResourceType } from "@/lib/navigation"
 import { hostnameColumnFor } from "@/lib/hostnames"
 import { isHttpRouteKind } from "@/lib/http-route"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -232,7 +232,10 @@ function CustomResourcesContent() {
     [nsData],
   )
 
-  const resourceTypes = useMemo(() => buildResourceTypes(discovery), [discovery])
+  const resourceTypes = useMemo(
+    () => buildResourceTypes(discovery).filter((entry) => !getNavItemForResourceType(entry)),
+    [discovery],
+  )
 
   // Deep links (All Resources, a pinned tab) preselect the requested type once
   // discovery resolves. An explicit pick always wins over the query param, and an

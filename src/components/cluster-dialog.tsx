@@ -65,10 +65,12 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster }: ClusterDial
     ]
     try {
       if (mode === "create") {
+        const availableRegions = metadata?.regions ?? []
+        const selectedRegion = availableRegions.length === 1 ? availableRegions[0] : region
         await createCluster.mutateAsync({
           metadata: { name },
           spec: {
-            region,
+            region: selectedRegion,
             network: {
               podCIDR: podCIDR || undefined,
               serviceCIDR: serviceCIDR || undefined,
@@ -124,21 +126,20 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster }: ClusterDial
                 <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="my-cluster" />
               </div>
             )}
-            {mode === "create" ? (
+            {mode === "create" ? (metadata?.regions?.length ?? 0) > 1 ? (
               <div className="space-y-2">
                 <Label htmlFor="region">Region</Label>
-                <Select value={region} onValueChange={setRegion}>
-                  <SelectTrigger id="region">
-                    <SelectValue placeholder="Select a region" />
-                  </SelectTrigger>
+                <Select
+                  value={metadata?.regions.includes(region) ? region : metadata?.regions[0]}
+                  onValueChange={setRegion}
+                >
+                  <SelectTrigger id="region"><SelectValue placeholder="Select a region" /></SelectTrigger>
                   <SelectContent>
-                    {metadata?.regions.map((r) => (
-                      <SelectItem key={r} value={r}>{r}</SelectItem>
-                    ))}
+                    {metadata?.regions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-            ) : (
+            ) : null : (
               <div className="space-y-2">
                 <Label>Region</Label>
                 <div className="rounded-md bg-muted px-3 py-2 text-sm">{cluster?.spec.region ?? "-"}</div>

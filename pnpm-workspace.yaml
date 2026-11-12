@@ -1,6 +1,8 @@
 allowBuilds:
   sharp: true
   unrs-resolver: true
+overrides:
+  compression: 1.8.2
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver

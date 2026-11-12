@@ -7,6 +7,7 @@ export interface AppConfig {
   }
   webShellConfig?: {
     image: string
+    sandboxImage?: string
     specVersion: string
   }
   monitoringConfig?: {

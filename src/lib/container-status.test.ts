@@ -146,4 +146,35 @@ describe("container status summaries", () => {
   it("returns no squares when the pod has no containers", () => {
     expect(getContainerStatusSummaries({}, NOW)).toEqual([])
   })
+
+  it("returns init containers before regular containers", () => {
+    const containers = getContainerStatusSummaries(
+      {
+        spec: {
+          initContainers: [{ name: "init1" }, { name: "init2", restartPolicy: "Always" }],
+          containers: [{ name: "app" }, { name: "sidecar" }],
+        },
+        status: {
+          initContainerStatuses: [
+            { name: "init1", state: { terminated: { exitCode: 0, reason: "Completed" } } },
+            { name: "init2", ready: true, state: { running: {} } },
+          ],
+          containerStatuses: [
+            { name: "app", ready: true, state: { running: {} } },
+            { name: "sidecar", ready: true, state: { running: {} } },
+          ],
+        },
+      },
+      NOW,
+    )
+
+    expect(containers.map((container) => `${container.role}:${container.name}`)).toEqual([
+      "init:init1",
+      "init:init2",
+      "container:app",
+      "container:sidecar",
+    ])
+    expect(containers[0].tone).toBe("completed")
+    expect(containers[1].tone).toBe("healthy")
+  })
 })

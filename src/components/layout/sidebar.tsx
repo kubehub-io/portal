@@ -290,10 +290,6 @@ function SidebarContent() {
         collapsed={collapsed}
         active={isActive(customResourcesItem)}
         onNavigate={() => setMobileOpen(false)}
-        onFavorite={() => {
-          const target = navItemToFavorite(customResourcesItem.id)
-          if (target) toggleFavorite(target)
-        }}
       />
     </div>
   ) : null

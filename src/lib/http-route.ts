@@ -46,8 +46,12 @@ function formatBackend(ref: unknown): string {
  * mapping shown on the HubHttpRoute page.
  */
 export function getHttpRouteRuleLines(item: Record<string, unknown>): HttpRouteRuleLine[] {
-  const rules = asRecord(item.spec)?.rules
-  if (!Array.isArray(rules)) return []
+  const spec = asRecord(item.spec)
+  const rules = Array.isArray(spec?.rules)
+    ? spec.rules
+    : Array.isArray(spec?.backendRefs)
+      ? [{ matches: spec.matches, backendRefs: spec.backendRefs }]
+      : []
 
   const lines: HttpRouteRuleLine[] = []
 
@@ -56,7 +60,11 @@ export function getHttpRouteRuleLines(item: Record<string, unknown>): HttpRouteR
     if (!rule) continue
 
     const matches = Array.isArray(rule.matches) && rule.matches.length > 0 ? rule.matches : [{}]
-    const backends = Array.isArray(rule.backendRefs) ? rule.backendRefs : []
+    const backends = Array.isArray(rule.backendRefs)
+      ? rule.backendRefs
+      : Array.isArray(rule.backends)
+        ? rule.backends
+        : []
 
     for (const match of matches) {
       const matchLabel = formatMatch(match)
