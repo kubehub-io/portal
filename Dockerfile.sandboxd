@@ -8,8 +8,8 @@ USER root
 # Set by BuildKit; docker only ever asks for the host architecture, so the
 # default keeps a plain `docker build` working outside CI.
 ARG TARGETARCH=amd64
-ARG KUBECTL_VERSION=1.35.4
-ARG HELM_VERSION=3.17.2
+ARG KUBECTL_VERSION=1.36.6
+ARG HELM_VERSION=3.22.1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
