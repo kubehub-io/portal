@@ -35,6 +35,7 @@ describe("useClusterShell sandbox lifecycle", () => {
 
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
+      if (url === "/config.json") return json({ webShellConfig: { sandboxImage: "sandboxd:test" } })
       if (url.endsWith("/api/v1/namespaces/agent-sandbox")) return json({}, 200)
       if (url.endsWith("/apis/node.k8s.io/v1/runtimeclasses/gvisor")) return json({}, 200)
       requests.push({ url, init })
@@ -103,6 +104,7 @@ describe("useClusterShell sandbox lifecycle", () => {
     let createCount = 0
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
       const url = String(input)
+      if (url === "/config.json") return json({ webShellConfig: { sandboxImage: "sandboxd:test" } })
       if (url.endsWith("/api/v1/namespaces/agent-sandbox")) return json({}, 200)
       if (url.endsWith("/apis/node.k8s.io/v1/runtimeclasses/gvisor")) return json({}, 200)
       if (url.includes("/sandboxclaims/")) return json({}, 404)
