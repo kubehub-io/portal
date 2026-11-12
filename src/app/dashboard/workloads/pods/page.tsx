@@ -9,6 +9,7 @@ import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import { deleteK8sResource } from "@/lib/api/k8s-client"
+import { ResourceYamlEditDialog, InspectResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Terminal, Monitor, Trash2, AlertTriangle } from "lucide-react"
@@ -29,6 +30,7 @@ export default function PodsPage() {
   const [logPod, setLogPod] = useState<{ namespace: string; name: string } | null>(null)
   const [execPod, setExecPod] = useState<{ namespace: string; name: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ ns: string; name: string } | null>(null)
+  const [inspectTarget, setInspectTarget] = useState<{ ns: string; name: string } | null>(null)
   const [deleteError, setDeleteError] = useState("")
   const { data: nsData } = useK8sClusterResources(
     { version: "v1", resource: "namespaces" },
@@ -99,6 +101,7 @@ export default function PodsPage() {
           const deleting = deleteMutation.variables?.name === name && deleteMutation.isPending
           return (
             <div className="flex items-center gap-1">
+              <InspectResourceButton onClick={() => setInspectTarget({ ns, name })} />
               <Button
                 variant="ghost"
                 size="sm"
@@ -127,6 +130,17 @@ export default function PodsPage() {
             </div>
           )
         }}
+      />
+      <ResourceYamlEditDialog
+        open={!!inspectTarget}
+        onOpenChange={(open) => { if (!open) setInspectTarget(null) }}
+        cluster={activeCluster}
+        desc={{ version: "v1", resource: "pods" }}
+        name={inspectTarget?.name ?? ""}
+        namespace={inspectTarget?.ns}
+        queryKey="pods"
+        title="Inspect Pod YAML"
+        readOnly
       />
       {logPod && (
         <PodLogsDialog

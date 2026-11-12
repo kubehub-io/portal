@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { getNavItem, resourceTypeNavId } from "@/lib/navigation"
+import { getNavItem, getNavItemForResourceType, resourceTypeNavId } from "@/lib/navigation"
 
 const RESOURCE_NAV_KEY = "kubehub:resourceNav"
 
@@ -53,7 +53,23 @@ function sanitizeFavorites(value: unknown): FavoriteResource[] {
   for (const entry of value) {
     const fav = entry as Partial<FavoriteResource>
     if (!fav || typeof fav.id !== "string" || typeof fav.href !== "string") continue
+    // Custom Resources is a permanent utility action, not a customizable tab.
+    if (fav.id === "custom-resources") continue
     const isResourceType = fav.id.startsWith("crd:")
+    const dedicated = isResourceType && fav.group && fav.version && fav.kind
+      ? getNavItemForResourceType({ group: fav.group, version: fav.version, kind: fav.kind })
+      : undefined
+    if (dedicated) {
+      if (seen.has(dedicated.id)) continue
+      seen.add(dedicated.id)
+      result.push({
+        id: dedicated.id,
+        label: dedicated.label,
+        href: dedicated.href,
+        addedAt: typeof fav.addedAt === "number" ? fav.addedAt : Date.now(),
+      })
+      continue
+    }
     // Drop favorites for tabs that no longer exist (retired pages, renamed ids).
     if (!isResourceType && !getNavItem(fav.id)) continue
     if (seen.has(fav.id)) continue

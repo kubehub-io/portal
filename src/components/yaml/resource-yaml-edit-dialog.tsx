@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { YamlEditor } from "@/components/yaml/yaml-editor"
-import { Loader2, Pencil } from "lucide-react"
+import { Eye, Loader2, Pencil } from "lucide-react"
 
 function cleanForEdit(obj: Record<string, unknown>): Record<string, unknown> {
   const clone = JSON.parse(JSON.stringify(obj)) as Record<string, unknown>
@@ -43,6 +43,7 @@ export interface ResourceYamlEditDialogProps {
   namespace?: string | null
   queryKey: string
   title?: string
+  readOnly?: boolean
 }
 
 export function ResourceYamlEditDialog({
@@ -54,6 +55,7 @@ export function ResourceYamlEditDialog({
   namespace,
   queryKey,
   title,
+  readOnly = false,
 }: ResourceYamlEditDialogProps) {
   const qc = useQueryClient()
   const [value, setValue] = useState("")
@@ -149,7 +151,7 @@ export function ResourceYamlEditDialog({
                 <Loader2 className="h-5 w-5 animate-spin" />
               </div>
             ) : (
-              <YamlEditor value={value} onChange={handleChange} height="100%" />
+              <YamlEditor value={value} onChange={handleChange} height="100%" readOnly={readOnly} />
             )}
           </div>
 
@@ -161,18 +163,15 @@ export function ResourceYamlEditDialog({
 
           <DialogFooter className="shrink-0 -mx-6 -mb-6 border-t bg-background px-6 py-3">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={updateMutation.isPending}>
-              Cancel
+              {readOnly ? "Close" : "Cancel"}
             </Button>
-            <Button onClick={handleSave} disabled={loadMutation.isPending || updateMutation.isPending}>
-              {updateMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                "Save"
-              )}
-            </Button>
+            {!readOnly && (
+              <Button onClick={handleSave} disabled={loadMutation.isPending || updateMutation.isPending}>
+                {updateMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</>
+                ) : "Save"}
+              </Button>
+            )}
           </DialogFooter>
         </div>
       </DialogContent>
@@ -188,6 +187,14 @@ export function EditResourceButton({
   return (
     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClick}>
       <Pencil className="h-3.5 w-3.5" />
+    </Button>
+  )
+}
+
+export function InspectResourceButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClick} aria-label="Inspect resource" title="Inspect YAML">
+      <Eye className="h-3.5 w-3.5" />
     </Button>
   )
 }
