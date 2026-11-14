@@ -42,10 +42,10 @@ describe("ClusterShell", () => {
     })
   }
 
-  it("describes the browser-session sandbox lifecycle", async () => {
+  it("does not add an extra sandbox banner above the terminal", async () => {
     renderShell()
 
-    expect(screen.getByText(/Agent Sandbox shell/i)).toBeInTheDocument()
-    expect(screen.getByText(/same sandbox pod is reused while this browser tab remains open/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Agent Sandbox shell/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/same sandbox pod is reused while this browser tab remains open/i)).not.toBeInTheDocument()
   })
 })

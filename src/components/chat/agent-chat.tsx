@@ -86,8 +86,16 @@ function EmptyChat({
 export function AgentChat({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient()
   const threadsQuery = useChatThreads()
-  const threads = useMemo(() => threadsQuery.data ?? [], [threadsQuery.data])
   const now = useNow(60_000)
+  const activeCluster = useClusterStore((state) => state.activeCluster)
+  const activeClusterName = activeCluster?.metadata.name
+  const threads = useMemo(
+    () =>
+      (threadsQuery.data ?? []).filter(
+        (thread) => thread.cluster_id === activeClusterName,
+      ),
+    [threadsQuery.data, activeClusterName],
+  )
 
   const [selectedID, setSelectedID] = useState<string | null>(null)
   const [newChat, setNewChat] = useState(false)
@@ -127,7 +135,6 @@ export function AgentChat({ embedded = false }: { embedded?: boolean }) {
     done: streamDone,
   } = useChatStream()
 
-  const activeCluster = useClusterStore((state) => state.activeCluster)
   const canCreateThread = Boolean(activeCluster?.metadata.name)
   const selectedThread = useMemo(
     () => threads.find((thread) => thread.id === effectiveSelectedID) ?? null,

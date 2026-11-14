@@ -36,18 +36,6 @@ export function ClusterShell() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-1.5 text-xs shrink-0">
-        <span className="shrink-0 text-muted-foreground">Agent Sandbox shell</span>
-        <span className="text-[11px] text-muted-foreground">
-          The same sandbox pod is reused while this browser tab remains open; after the tab closes it expires automatically within 5 minutes.
-        </span>
-        {phase === "ready" && error && (
-          <p className="min-w-[16rem] flex-1 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
-            {error}
-          </p>
-        )}
-      </div>
-
       {phase === "ready" ? (
         <ShellTerminal
           key={sessionKey}

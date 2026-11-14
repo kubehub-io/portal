@@ -333,25 +333,20 @@ async function createSandbox(
     const sandboxSpec = sandbox.spec as Record<string, unknown> | undefined
     const sandboxPodTemplate = sandboxSpec?.podTemplate as Record<string, unknown> | undefined
     const sandboxPodSpec = sandboxPodTemplate?.spec as Record<string, unknown> | undefined
-    const sandboxEnv = Array.isArray(sandboxPodSpec?.env) ? sandboxPodSpec.env : []
-    if (!sandboxEnv.some((item) => (item as Record<string, unknown>)?.name === "PS1")) {
-      await requestJson(sandboxUrl, token, dns, {
-        method: "PATCH",
-        body: JSON.stringify({
-          spec: {
-            podTemplate: {
-              spec: {
-                env: [
-                  { name: "HOME", value: "/workspace" },
-                  { name: "PS1", value: "sandbox@\\h:\\w\\$ " },
-                ],
-              },
-            },
-          },
-          shutdownTime: shutdownTime(),
-          shutdownPolicy: "Delete",
-        }),
-      })
+    const sandboxContainer = Array.isArray(sandboxPodSpec?.containers)
+      ? sandboxPodSpec.containers.find((item) => (item as Record<string, unknown>)?.name === "sandboxd") as Record<string, unknown> | undefined
+      : undefined
+    const sandboxContainerSecurity = sandboxContainer?.securityContext as Record<string, unknown> | undefined
+    const runsAsRoot =
+      sandboxContainerSecurity?.runAsUser === 0 &&
+      sandboxContainerSecurity?.runAsGroup === 0 &&
+      sandboxContainerSecurity?.runAsNonRoot === false
+
+    // Pod templates are immutable once the controller has created the pod.
+    // Remove an older non-root Sandbox so the next create uses the root/gVisor
+    // configuration below.
+    if (!runsAsRoot) {
+      await deleteResource(sandboxUrl, token, dns)
     } else {
       // Sandbox lifecycle fields are inline on SandboxSpec (unlike the
       // nested lifecycle object on SandboxClaim).
@@ -384,7 +379,7 @@ async function createSandbox(
       ports: [{ containerPort: 8080, protocol: "TCP" }, { containerPort: 9090, protocol: "TCP" }],
       readinessProbe: { httpGet: { path: "/v1/health", port: 8080 } },
       resources: { requests: { cpu: "250m", "ephemeral-storage": "1Gi", memory: "512Mi" } },
-      securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] }, runAsGroup: 1000, runAsNonRoot: true, runAsUser: 1000 },
+      securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] }, runAsGroup: 0, runAsNonRoot: false, runAsUser: 0 },
       volumeMounts: [
         { name: "workspace", mountPath: "/workspace" },
         { name: "satoken", mountPath: "/var/run/secrets/kubernetes.io/serviceaccount" },
