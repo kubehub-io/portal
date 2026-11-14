@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Minimize2,
   Terminal,
+  ShieldCheck,
   X,
   type LucideIcon,
 } from "lucide-react"
@@ -39,7 +40,7 @@ const PANELS: PanelMeta[] = [
     id: "shell",
     label: "Shell",
     icon: Terminal,
-    description: "Cluster shell",
+    description: "gVisor runtime",
   },
   {
     id: "apply",
@@ -146,6 +147,12 @@ export function WorkbenchPanel() {
       <div className="flex h-9 shrink-0 items-center gap-2 border-b px-3">
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-medium">{meta.label}</span>
+        {active === "shell" && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400" title="Protected by gVisor">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="sr-only">Protected by gVisor</span>
+          </span>
+        )}
         <span className="hidden truncate text-[11px] text-muted-foreground sm:inline">
           {meta.description}
         </span>

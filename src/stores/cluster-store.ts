@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { useWorkbenchStore } from "@/stores/workbench-store"
 
 const ACTIVE_CLUSTER_KEY = "kubehub:activeCluster"
 
@@ -122,6 +123,12 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   },
 
   setActiveCluster: (cluster) => {
+    const current = get().activeCluster
+    if (current?.metadata.name !== cluster?.metadata.name) {
+      // Cluster-scoped panels hold live connections and must not survive a
+      // cluster switch (for example, a shell session or an agent stream).
+      useWorkbenchStore.getState().close()
+    }
     saveActiveCluster(cluster)
     set({ activeCluster: cluster, activeNamespace: "__all" })
   },

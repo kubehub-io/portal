@@ -48,6 +48,17 @@ describe("useClusterShell sandbox lifecycle", () => {
                 name: "portal-shell-test",
                 annotations: { "agents.x-k8s.io/pod-name": "portal-shell-test" },
               },
+              spec: {
+                podTemplate: {
+                  spec: {
+                    containers: [{
+                      name: "sandboxd",
+                      securityContext: { runAsUser: 0, runAsGroup: 0, runAsNonRoot: false },
+                      env: [{ name: "PS1" }],
+                    }],
+                  },
+                },
+              },
               status: { conditions: [{ type: "Ready", status: "True" }] },
             })
           : json({}, 404)
@@ -119,6 +130,17 @@ describe("useClusterShell sandbox lifecycle", () => {
               metadata: {
                 name: "portal-shell-test",
                 annotations: { "agents.x-k8s.io/pod-name": "portal-shell-test" },
+              },
+              spec: {
+                podTemplate: {
+                  spec: {
+                    containers: [{
+                      name: "sandboxd",
+                      securityContext: { runAsUser: 0, runAsGroup: 0, runAsNonRoot: false },
+                      env: [{ name: "PS1" }],
+                    }],
+                  },
+                },
               },
               status: { conditions: [{ type: "Ready", status: "True" }] },
             })
