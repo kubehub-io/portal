@@ -5,6 +5,7 @@ import {
   formatRelativeTime,
   isProgressRunning,
   progressLabel,
+  progressStep,
   withPendingUserMessage,
 } from "@/lib/chat"
 
@@ -86,5 +87,30 @@ describe("progressLabel", () => {
   it("knows which events are still running", () => {
     expect(isProgressRunning({ type: "tool_started" })).toBe(true)
     expect(isProgressRunning({ type: "tool_completed" })).toBe(false)
+  })
+
+  it("labels a failed tool distinctly", () => {
+    expect(progressLabel({ type: "tool_failed", tool: "sandbox_exec" })).toBe(
+      "sandbox_exec failed",
+    )
+  })
+})
+
+describe("progressStep", () => {
+  it("reports the last iteration and the configured bound", () => {
+    expect(
+      progressStep([
+        { type: "iteration_started", iteration: 1, max_iterations: 20 },
+        { type: "tool_started", tool: "pods_list", iteration: 1, max_iterations: 20 },
+        { type: "iteration_started", iteration: 2, max_iterations: 20 },
+      ]),
+    ).toEqual({ iteration: 2, maxIterations: 20 })
+  })
+
+  it("omits the step when an older server does not report it", () => {
+    expect(progressStep([{ type: "tool_started", tool: "pods_list" }])).toEqual({
+      iteration: undefined,
+      maxIterations: undefined,
+    })
   })
 })

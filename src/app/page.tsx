@@ -166,7 +166,7 @@ function HowItWorksSection() {
           <div className="step-card">
             <div className="step-number">3</div>
             <h3 className="step-title">Onboard a Node</h3>
-            <p className="step-desc">Run one command on your machine. Our agent connects outbound — no open ports, no router config.</p>
+            <p className="step-desc">Install Linux, then run one command on your machine. Our agent connects outbound — no open ports, no router config.</p>
           </div>
           <div className="step-connector">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
@@ -287,7 +287,7 @@ function ArchitectureSection() {
             <div className="arch-point">
               <div className="arch-point-icon">🔐</div>
               <div>
-                <strong>You keep your own data.</strong> Your secrets, your app data, your volumes — all remain on your hardware. We never touch them.
+                <strong>Your app data stays local.</strong> App data and persistent volumes remain on your hardware. Kubernetes resources spec (Pod/Deployment/Daemonset/Configmap/Secrets/...) stores in etcd on server side along with apiserver; use a self-hosted github.com/hashicorp/vault when secrets need to stay on your node.
               </div>
             </div>
           </div>
@@ -363,17 +363,17 @@ function FaqSection() {
           <details className="faq-item">
             <summary className="faq-question">I don&apos;t trust to store my app secret in hosted control-plane. What are my options?</summary>
             <div className="faq-answer">
-              <p>Totally fair. You have a couple of options:</p>
+              <p>Totally fair. Kubernetes Secrets are stored in the hosted control plane for cluster operations. If you need secrets to stay on your hardware, you have a couple of options:</p>
               <ul>
                 <li>Use hostPath mounts on your node to store secrets locally.</li>
-                <li>Use <code>secrets-store-csi-driver</code> with a self-hosted HashiCorp Vault.</li>
+                <li>Use <code>secrets-store-csi-driver</code> with a <a href="https://developer.hashicorp.com/vault/docs/platform/k8s/csi" target="_blank" rel="noreferrer">self-hosted HashiCorp Vault</a>.</li>
               </ul>
             </div>
           </details>
           <details className="faq-item">
             <summary className="faq-question">Can I run this on a VM?</summary>
             <div className="faq-answer">
-              <p>Yes, and we encourage you to try it on a VM first! Just keep in mind: if your VM goes down, we may reclaim the control plane to free resources. Also Local-only apps won&apos;t be reachable outside the host running the VM (unless you do proper setup)</p>
+              <p>Yes, and we encourage you to try it on a VM first! Keep in mind that if your VM stays offline for 30 consecutive days, we may reclaim the hosted control plane to free resources. Local-only apps won&apos;t be reachable outside the host running the VM unless you do additional network setup.</p>
             </div>
           </details>
           <details className="faq-item">
@@ -397,11 +397,7 @@ function FaqSection() {
           <details className="faq-item">
             <summary className="faq-question">What if I want a custom domain for my app?</summary>
             <div className="faq-answer">
-              <p>Custom domain support is on the roadmap! For now you can:</p>
-              <ul>
-                <li><strong>Self-manage:</strong> Use NodePort, configure your router, and point your DNS to your public IP.</li>
-                <li><strong>KubeHub managed:</strong> Let us handle DNS, TLS, and routing automatically on our <code>*.mykube.app</code> domains.</li>
-              </ul>
+              <p>Yes. Follow our <a href="https://docs.kubehub.io/bring_your_own_domain/" target="_blank" rel="noreferrer">Bring Your Own Domain guide</a> to point your domain at a KubeHub app and configure it on the app&apos;s AppIngress page.</p>
             </div>
           </details>
         </div>
@@ -423,7 +419,6 @@ function FooterSection() {
             <h4 className="footer-col-title">Resources</h4>
             <a href="https://docs.kubehub.io" className="footer-link">Docs</a>
             <a href="https://github.com/kubehub-io" className="footer-link">GitHub</a>
-            <a href="#" className="footer-link">Status</a>
           </div>
           <div className="footer-col">
             <h4 className="footer-col-title">Contact</h4>
@@ -431,8 +426,7 @@ function FooterSection() {
           </div>
           <div className="footer-col">
             <h4 className="footer-col-title">Legal</h4>
-            <a href="#" className="footer-link">Privacy</a>
-            <a href="#" className="footer-link">Terms</a>
+            <a href="/privacy" className="footer-link">Privacy</a>
           </div>
         </div>
       </div>

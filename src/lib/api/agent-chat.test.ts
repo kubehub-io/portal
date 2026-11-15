@@ -94,11 +94,11 @@ describe("streamMessage", () => {
     authFetchMock.mockResolvedValue({
       body: streamFromText(
         [
-          'event: progress\ndata: {"type":"tool_started","tool":"sandbox_exec"}\n\n',
+          'event: progress\ndata: {"type":"tool_started","tool":"sandbox_exec","iteration":2,"max_iterations":20}\n\n',
           'event: progress\ndata: {"type":"command_started","tool":"sandbox_exec","detail":"curl -v http://10.10.1.138"}\n\n',
           'event: token\ndata: {"content":"The IP "}\n\n',
           'event: token\ndata: {"content":"is reachable."}\n\n',
-          'event: done\ndata: {"status":"completed","run_id":"run-1","thread_id":"thread-1","message_id":"msg-1"}\n\n',
+          'event: done\ndata: {"status":"completed","run_id":"run-1","thread_id":"thread-1","message_id":"msg-1","usage":{"prompt_tokens":1200,"completion_tokens":40,"total_tokens":1240,"cached_tokens":900,"reasoning_tokens":12,"model_calls":2}}\n\n',
         ].join(""),
       ),
     } as unknown as Response)
@@ -108,7 +108,12 @@ describe("streamMessage", () => {
     expect(events).toEqual([
       {
         type: "progress",
-        progress: { type: "tool_started", tool: "sandbox_exec" },
+        progress: {
+          type: "tool_started",
+          tool: "sandbox_exec",
+          iteration: 2,
+          max_iterations: 20,
+        },
       },
       {
         type: "progress",
@@ -128,6 +133,14 @@ describe("streamMessage", () => {
           thread_id: "thread-1",
           message_id: "msg-1",
           error: undefined,
+          usage: {
+            prompt_tokens: 1200,
+            completion_tokens: 40,
+            total_tokens: 1240,
+            cached_tokens: 900,
+            reasoning_tokens: 12,
+            model_calls: 2,
+          },
         },
       },
     ])
