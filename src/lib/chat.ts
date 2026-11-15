@@ -41,6 +41,8 @@ export function progressLabel(event: AgentProgressEvent): string {
       return tool ? `Running ${tool}` : "Running tool"
     case "tool_completed":
       return tool ? `Finished ${tool}` : "Tool finished"
+    case "tool_failed":
+      return tool ? `${tool} failed` : "Tool failed"
     case "command_started":
       return tool ? `Running command in ${tool}` : "Running command"
     case "command_completed":
@@ -52,6 +54,30 @@ export function progressLabel(event: AgentProgressEvent): string {
 
 export function isProgressRunning(event: AgentProgressEvent): boolean {
   return event.type.endsWith("_started")
+}
+
+/**
+ * The ReAct step the activity list has reached, as reported by the server.
+ *
+ * The last reported iteration wins because events arrive in order. Both values
+ * are optional: an older Chat API does not send them, in which case the UI
+ * simply omits the step indicator.
+ */
+export function progressStep(events: AgentProgressEvent[]): {
+  iteration?: number
+  maxIterations?: number
+} {
+  let iteration: number | undefined
+  let maxIterations: number | undefined
+  for (const event of events) {
+    if (typeof event.iteration === "number" && event.iteration > 0) {
+      iteration = event.iteration
+    }
+    if (typeof event.max_iterations === "number" && event.max_iterations > 0) {
+      maxIterations = event.max_iterations
+    }
+  }
+  return { iteration, maxIterations }
 }
 
 /**

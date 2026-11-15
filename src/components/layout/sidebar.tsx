@@ -38,6 +38,7 @@ import {
   type FavoriteResource,
 } from "@/stores/resource-nav-store"
 import { NavCustomizeDialog } from "@/components/layout/nav-customize-dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface DisplayItem {
   id: string
@@ -47,6 +48,7 @@ interface DisplayItem {
   /** Shown greyed out because the cluster cannot serve the tab right now. */
   unreachable: boolean
   reason?: string
+  tooltip?: string
 }
 
 function hrefPath(href: string): string {
@@ -113,6 +115,10 @@ function SidebarContent() {
       href: fav.href,
       icon: navItem?.icon ?? Boxes,
       unreachable: false,
+      tooltip:
+        fav.id.startsWith("crd:") && fav.group && fav.version && fav.kind
+          ? `${fav.kind} — ${fav.group}/${fav.version}`
+          : undefined,
     }
   })
 
@@ -147,11 +153,25 @@ function SidebarContent() {
     }
     return { ...group, items }
   }).filter((group) => group.items.length > 0)
+  const controlPlaneGroup = groups.find((group) => group.id === "control-plane")
+  const otherGroups = groups.filter((group) => group.id !== "control-plane")
 
   const hiddenCount = hidden.length
 
   const renderNav = (onNavigate?: () => void) => (
     <nav className="flex-1 overflow-y-auto p-2">
+      {controlPlaneGroup && (
+        <NavGroup
+          group={controlPlaneGroup}
+          collapsed={collapsed}
+          isActive={isActive}
+          onNavigate={onNavigate}
+          pinnedIds={pinnedIds}
+          toggleFavorite={toggleFavorite}
+          toggleHidden={toggleHidden}
+        />
+      )}
+
       {favoriteItems.length > 0 && (
         <div className="mb-2">
           {!collapsed && (
@@ -169,35 +189,23 @@ function SidebarContent() {
               active={isActive(item)}
               onNavigate={onNavigate}
               onUnpin={() => removeFavorite(item.id)}
+              tooltip={item.tooltip}
             />
           ))}
         </div>
       )}
 
-      {groups.map((group) => (
-        <div key={group.id} className="mb-2">
-          {!collapsed && (
-            <div className="px-2 py-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {group.label}
-              </span>
-            </div>
-          )}
-        {group.items.map((item) => (
-            <NavRow
-              key={item.id}
-              item={item}
-              collapsed={collapsed}
-              active={isActive(item)}
-              onNavigate={onNavigate}
-              onFavorite={() => {
-                const target = navItemToFavorite(item.id)
-                if (target) toggleFavorite(target)
-              }}
-              onHide={() => toggleHidden(item.id)}
-            />
-          ))}
-        </div>
+      {otherGroups.map((group) => (
+        <NavGroup
+          key={group.id}
+          group={group}
+          collapsed={collapsed}
+          isActive={isActive}
+          onNavigate={onNavigate}
+          pinnedIds={pinnedIds}
+          toggleFavorite={toggleFavorite}
+          toggleHidden={toggleHidden}
+        />
       ))}
 
     </nav>
@@ -295,7 +303,8 @@ function SidebarContent() {
   ) : null
 
   return (
-    <>
+    <TooltipProvider delayDuration={250}>
+      <>
       <Button
         variant="ghost"
         size="icon"
@@ -353,7 +362,8 @@ function SidebarContent() {
       )}
 
       <NavCustomizeDialog open={customizeOpen} onOpenChange={setCustomizeOpen} />
-    </>
+      </>
+    </TooltipProvider>
   )
 }
 
@@ -365,6 +375,54 @@ interface NavRowProps {
   onFavorite?: () => void
   onHide?: () => void
   onUnpin?: () => void
+  tooltip?: string
+}
+
+function NavGroup({
+  group,
+  collapsed,
+  isActive,
+  onNavigate,
+  pinnedIds,
+  toggleFavorite,
+  toggleHidden,
+}: {
+  group: { id: string; label: string; items: DisplayItem[] }
+  collapsed: boolean
+  isActive: (item: DisplayItem) => boolean
+  onNavigate?: () => void
+  pinnedIds: Set<string>
+  toggleFavorite: (favorite: Omit<FavoriteResource, "addedAt">) => void
+  toggleHidden: (id: string) => void
+}) {
+  const items = group.items.filter((item) => !pinnedIds.has(item.id))
+  if (items.length === 0) return null
+
+  return (
+    <div className="mb-2">
+      {!collapsed && (
+        <div className="px-2 py-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {group.label}
+          </span>
+        </div>
+      )}
+      {items.map((item) => (
+        <NavRow
+          key={item.id}
+          item={item}
+          collapsed={collapsed}
+          active={isActive(item)}
+          onNavigate={onNavigate}
+          onFavorite={group.id === "control-plane" ? undefined : () => {
+            const target = navItemToFavorite(item.id)
+            if (target) toggleFavorite(target)
+          }}
+          onHide={group.id === "control-plane" ? undefined : () => toggleHidden(item.id)}
+        />
+      ))}
+    </div>
+  )
 }
 
 function NavRow({
@@ -375,28 +433,37 @@ function NavRow({
   onFavorite,
   onHide,
   onUnpin,
+  tooltip,
 }: NavRowProps) {
   const Icon = item.icon
+  const row = (
+    <Button
+      variant={active ? "secondary" : "ghost"}
+      size="sm"
+      asChild
+      className={cn(
+        "w-full justify-start gap-2 px-2 text-sm font-normal",
+        collapsed && "justify-center px-0",
+        active && "bg-accent font-medium",
+        item.unreachable && "opacity-50 pointer-events-none",
+      )}
+      title={collapsed ? item.label : item.reason}
+      onClick={onNavigate}
+    >
+      <Link href={item.href}>
+        <Icon className="h-4 w-4 shrink-0" />
+        {!collapsed && <span className="truncate">{item.label}</span>}
+      </Link>
+    </Button>
+  )
   return (
     <div className="group/nav relative">
-      <Button
-        variant={active ? "secondary" : "ghost"}
-        size="sm"
-        asChild
-        className={cn(
-          "w-full justify-start gap-2 px-2 text-sm font-normal",
-          collapsed && "justify-center px-0",
-          active && "bg-accent font-medium",
-          item.unreachable && "opacity-50 pointer-events-none",
-        )}
-        title={collapsed ? item.label : item.reason}
-        onClick={onNavigate}
-      >
-        <Link href={item.href}>
-          <Icon className="h-4 w-4 shrink-0" />
-          {!collapsed && <span className="truncate">{item.label}</span>}
-        </Link>
-      </Button>
+      {tooltip ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{row}</TooltipTrigger>
+          <TooltipContent side="right">{tooltip}</TooltipContent>
+        </Tooltip>
+      ) : row}
 
       {!collapsed && (
         <div

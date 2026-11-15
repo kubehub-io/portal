@@ -124,8 +124,32 @@ paths:
       summary: Send a message and stream the agent response
       description: |
         Appends the user message and starts an agent run. The response is a
-        server-sent event stream. Tokens are emitted as they are generated;
-        the stream ends with a `done` event.
+        server-sent event stream.
+
+        The stream carries four event types:
+
+        - `token` — a chunk of generated assistant text. Concatenate `content`.
+        - `progress` — advisory activity while the agent works, so the client
+          can show which tool is running and which ReAct step it is on. It is
+          not required to render the answer, and a client that ignores it still
+          receives the complete response.
+        - `error` — a human-readable failure. The stream stays open for `done`.
+        - `done` — exactly one terminal event. On success it carries the
+          persisted `message_id` and the run's token `usage`; on failure it
+          carries the error.
+
+        `progress` frames are deliberately reduced before they reach the
+        browser. They contain `type` (`iteration_started`, `tool_started`,
+        `tool_completed`, `tool_failed` or `command_started`), `tool`,
+        `iteration`, `call_id` and `elapsed_ms`, plus `max_iterations` on
+        `iteration_started` frames. Tool arguments and shell command previews
+        stay inside the cluster, so a `command_started` frame names the tool
+        but carries no command text.
+
+        `usage` on the `done` event is the run's consumption summed over every
+        model call it made in the agent's ReAct loop. It is omitted when the
+        run made no model call. The same numbers are persisted on the run
+        record, which is the system of record for billing and reporting.
 
         Before the run starts, the Chat API reconciles the agent sandbox
         resources and mints a token for `agentServiceAccount` using the
@@ -150,24 +174,36 @@ paths:
                 type: string
               examples:
                 completed:
-                  summary: Successful run
+                  summary: Successful run with progress and token usage
                   value: |
+                    event: progress
+                    data: {"type":"iteration_started","iteration":1,"max_iterations":20}
+
+                    event: progress
+                    data: {"type":"tool_started","tool":"pods_list","iteration":1,"call_id":"call-1"}
+
+                    event: progress
+                    data: {"type":"tool_completed","tool":"pods_list","iteration":1,"call_id":"call-1","elapsed_ms":412}
+
                     event: token
                     data: {"content":"The pod is restarting because "}
 
                     event: token
                     data: {"content":"..."}
 
+                    event: progress
+                    data: {"type":"iteration_started","iteration":2,"max_iterations":20}
+
                     event: done
-                    data: {"status":"completed","run_id":"run-id","thread_id":"thread-id","message_id":"message-id"}
+                    data: {"status":"completed","run_id":"run-id","thread_id":"thread-id","message_id":"message-id","usage":{"prompt_tokens":1200,"completion_tokens":40,"total_tokens":1240,"cached_tokens":900,"reasoning_tokens":12,"model_calls":2}}
                 failed:
-                  summary: Failed run
+                  summary: Failed run that still spent tokens
                   value: |
                     event: error
                     data: {"message":"the agent run failed"}
 
                     event: done
-                    data: {"status":"failed","run_id":"run-id","thread_id":"thread-id","error":"the agent run failed"}
+                    data: {"status":"failed","run_id":"run-id","thread_id":"thread-id","error":"the agent run failed","usage":{"prompt_tokens":800,"completion_tokens":30,"total_tokens":830,"model_calls":1}}
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -260,6 +296,72 @@ components:
         created_at:
           type: string
           format: date-time
+    AgentProgress:
+      type: object
+      description: |
+        Payload of a `progress` server-sent event. It reports activity that
+        produces no assistant text: a new ReAct step starting, a tool starting
+        or finishing, or a sandbox command starting. It is advisory and carries
+        no model-generated payload beyond the tool name.
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum:
+            - iteration_started
+            - tool_started
+            - tool_completed
+            - tool_failed
+            - command_started
+        tool:
+          type: string
+          description: Name of the tool being called, on tool events.
+        iteration:
+          type: integer
+          format: int64
+          description: 1-based turn of the agent's ReAct loop.
+        max_iterations:
+          type: integer
+          format: int64
+          description: |
+            Configured bound for this run, set on `iteration_started` frames,
+            for rendering "step 3 of 20".
+        call_id:
+          type: string
+          description: Identifies one tool invocation, so parallel calls are distinct.
+        elapsed_ms:
+          type: integer
+          format: int64
+          description: How long a completed or failed step took.
+    TokenUsage:
+      type: object
+      description: |
+        Token consumption of one agent run, summed over every model call in its
+        ReAct loop. Reported on the `done` event and persisted on the run
+        record. Counts are zero when the provider did not report usage.
+      required: [prompt_tokens, completion_tokens, total_tokens, model_calls]
+      properties:
+        prompt_tokens:
+          type: integer
+          format: int64
+        completion_tokens:
+          type: integer
+          format: int64
+        total_tokens:
+          type: integer
+          format: int64
+        cached_tokens:
+          type: integer
+          format: int64
+          description: Part of `prompt_tokens` served from a provider cache.
+        reasoning_tokens:
+          type: integer
+          format: int64
+          description: Part of `completion_tokens` spent on reasoning.
+        model_calls:
+          type: integer
+          format: int64
+          description: How many model invocations the run made.
     ErrorResponse:
       type: object
       required: [error]

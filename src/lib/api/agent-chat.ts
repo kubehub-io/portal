@@ -79,9 +79,26 @@ export interface StreamMessageOptions {
 /** Progress events emitted by the agent while it works (e.g. tool calls). */
 export interface AgentProgressEvent {
   type: string
+  /** Tool being called, on tool lifecycle events. */
   tool?: string
-  detail?: string
+  /** 1-based turn of the agent's ReAct loop. */
+  iteration?: number
+  /** Configured iteration bound, for rendering "step 3 of 20". */
+  max_iterations?: number
+  /** Identifies one tool invocation, so parallel calls stay distinct. */
+  call_id?: string
+  /** Duration of a completed or failed step. */
+  elapsed_ms?: number
   [key: string]: unknown
+}
+
+export interface AgentTokenUsage {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cached_tokens?: number
+  reasoning_tokens?: number
+  model_calls: number
 }
 
 export interface AgentDoneEvent {
@@ -90,6 +107,8 @@ export interface AgentDoneEvent {
   thread_id?: string
   message_id?: string
   error?: string
+  /** Token consumption of the run, summed over its model calls. */
+  usage?: AgentTokenUsage
 }
 
 export type AgentStreamEvent =
@@ -222,6 +241,7 @@ export async function* streamMessage(
           thread_id: data?.thread_id,
           message_id: data?.message_id,
           error: data?.error,
+          usage: data?.usage,
         },
       }
       // The done event terminates the run even if the server keeps the

@@ -3,7 +3,7 @@
 import { Bot, Check, CircleAlert, Loader2, Wrench } from "lucide-react"
 import type { ChatMessage } from "@/lib/api/agent-chat"
 import type { ChatProgressItem } from "@/hooks/use-agent-chat"
-import { isProgressRunning, progressLabel } from "@/lib/chat"
+import { isProgressRunning, progressLabel, progressStep } from "@/lib/chat"
 import { AgentMarkdown } from "@/components/chat/agent-markdown"
 import { cn } from "@/lib/utils"
 
@@ -15,34 +15,58 @@ function AgentAvatar() {
   )
 }
 
+/** How many completed activities stay visible in the compact timeline. */
+const VISIBLE_PROGRESS_ITEMS = 4
+
 function ProgressTimeline({ items }: { items: ChatProgressItem[] }) {
   if (items.length === 0) return null
+
+  // `iteration_started` only advances the step indicator; rendering it as a
+  // row would add a line for every model turn and bury the tool activity.
+  const steps = items.filter((item) => item.type !== "iteration_started")
+  const { iteration, maxIterations } = progressStep(items)
+  const visible = steps.slice(-VISIBLE_PROGRESS_ITEMS)
+  const hidden = steps.length - visible.length
 
   return (
     <div className="mb-3 rounded-lg border bg-muted/30 p-2.5 text-xs">
       <div className="mb-1.5 flex items-center gap-1.5 font-medium text-muted-foreground">
         <Wrench className="h-3 w-3" />
-        Agent activity
+        <span>Agent activity</span>
+        {typeof iteration === "number" && (
+          <span className="ml-auto tabular-nums">
+            Step {iteration}
+            {typeof maxIterations === "number" ? ` of ${maxIterations}` : ""}
+          </span>
+        )}
       </div>
       <div className="space-y-1.5">
-        {items.map((item) => {
+        {hidden > 0 && (
+          <div className="text-muted-foreground/70">
+            {hidden} earlier {hidden === 1 ? "step" : "steps"}
+          </div>
+        )}
+        {visible.map((item) => {
           const running = isProgressRunning(item)
+          const failed = item.type === "tool_failed"
           return (
             <div key={item.id} className="flex gap-2">
-              <span className="mt-0.5 shrink-0 text-muted-foreground">
+              <span className="mt-0.5 shrink-0">
                 {running ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                ) : failed ? (
+                  <CircleAlert className="h-3 w-3 text-destructive" />
                 ) : (
                   <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
                 )}
               </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-muted-foreground">{progressLabel(item)}</div>
-                {typeof item.detail === "string" && item.detail && (
-                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded bg-muted px-2 py-1 font-mono text-[11px] text-foreground">
-                    {item.detail}
-                  </pre>
+              <div
+                className={cn(
+                  "min-w-0 flex-1",
+                  failed ? "text-destructive" : "text-muted-foreground",
                 )}
+              >
+                {progressLabel(item)}
               </div>
             </div>
           )
