@@ -11,6 +11,7 @@ import { AlertWarningButton } from "@/components/monitoring/alert-warning-button
 import { getConfig } from "@/lib/config"
 import { LogOut, Sun, Moon, Monitor, Activity } from "lucide-react"
 import { redirect } from "next/navigation"
+import { SetupPrompts } from "@/components/layout/setup-prompts"
 
 const nextTheme: Record<string, "light" | "dark" | "system"> = {
   system: "light",
@@ -98,6 +99,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <WorkbenchBar />
       </div>
+      <SetupPrompts />
     </div>
   )
 }
