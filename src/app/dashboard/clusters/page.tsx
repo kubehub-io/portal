@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useClusters, useDeleteCluster, useDownloadKubeconfig, useReconcileCluster } from "@/hooks/use-clusters"
 import { startCluster as doStartCluster, listControlPlaneNodes } from "@/lib/api/control-plane"
-import { ClusterDialog, fetchAppIngressCount } from "@/components/cluster-dialog"
+import { ClusterDialog } from "@/components/cluster-dialog"
 import { getComponentLink } from "@/lib/component-links"
 import { Button } from "@/components/ui/button"
 import {
@@ -50,7 +50,6 @@ export default function ClustersPage() {
   const [deleteError, setDeleteError] = useState("")
   const [deleteForce, setDeleteForce] = useState(false)
   const [deleteNodesCount, setDeleteNodesCount] = useState(0)
-  const [deleteAppIngressCount, setDeleteAppIngressCount] = useState(0)
   const [deleteChecking, setDeleteChecking] = useState(false)
   const [kubeconfigTarget, setKubeconfigTarget] = useState<string | null>(null)
   const [certBased, setCertBased] = useState(false)
@@ -195,15 +194,10 @@ export default function ClustersPage() {
                           setDeleteError("")
                           setDeleteChecking(true)
                           try {
-                            const [nodes, ingressCount] = await Promise.all([
-                              listControlPlaneNodes(cluster.metadata.name),
-                              fetchAppIngressCount(cluster.metadata.name),
-                            ])
+                            const nodes = await listControlPlaneNodes(cluster.metadata.name)
                             setDeleteNodesCount(nodes.length)
-                            setDeleteAppIngressCount(ingressCount)
                           } catch {
                             setDeleteNodesCount(0)
-                            setDeleteAppIngressCount(0)
                           }
                           setDeleteChecking(false)
                         }}>
@@ -453,11 +447,10 @@ choco install kubelogin`}</pre>
             </div>
           ) : (
             <>
-              {(deleteNodesCount > 0 || deleteAppIngressCount > 0) && (
+              {deleteNodesCount > 0 && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200 space-y-1">
                   <p className="font-medium">This cluster has existing resources:</p>
-                  {deleteNodesCount > 0 && <p>&bull; {deleteNodesCount} node{deleteNodesCount !== 1 ? "s" : ""}</p>}
-                  {deleteAppIngressCount > 0 && <p>&bull; {deleteAppIngressCount} app ingress{deleteAppIngressCount !== 1 ? "es" : ""}</p>}
+                  <p>&bull; {deleteNodesCount} node{deleteNodesCount !== 1 ? "s" : ""}</p>
                   <p className="mt-1">Delete will fail unless you force delete.</p>
                 </div>
               )}
@@ -475,7 +468,7 @@ choco install kubelogin`}</pre>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDeleteTarget(null); setDeleteForce(false) }}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={deleteCluster.isPending || deleteChecking || ((deleteNodesCount > 0 || deleteAppIngressCount > 0) && !deleteForce)}>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={deleteCluster.isPending || deleteChecking || (deleteNodesCount > 0 && !deleteForce)}>
               {deleteCluster.isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>

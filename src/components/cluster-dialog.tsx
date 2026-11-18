@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCreateCluster } from "@/hooks/use-clusters"
-import { getMetadata, getClusterETag, updateCluster, listAppIngresses } from "@/lib/api/control-plane"
+import { getMetadata, getClusterETag, updateCluster } from "@/lib/api/control-plane"
 import type { Cluster } from "@/stores/cluster-store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -312,13 +312,4 @@ export function ClusterDialog({ mode, open, onOpenChange, cluster }: ClusterDial
       </DialogContent>
     </Dialog>
   )
-}
-
-export async function fetchAppIngressCount(clusterName: string): Promise<number> {
-  try {
-    const apps = await listAppIngresses(clusterName)
-    return apps.length
-  } catch {
-    return 0
-  }
 }

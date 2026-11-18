@@ -1,6 +1,5 @@
 import type { IncomingMessage } from "node:http"
 import {
-  MOCK_APP_INGRESSES,
   MOCK_CLUSTERS,
   MOCK_METADATA_REGIONS,
   MOCK_NODES,
@@ -9,19 +8,18 @@ import {
 } from "./data.ts"
 import { readBody, sendJson, sendText, type Handler } from "./util.ts"
 
-const API_BASE = "/apis/v202607"
+const API_BASE = "/apis/v202611"
+const API_VERSION = "v202611"
 
 interface MockState {
   clusters: MockCluster[]
   nodes: MockK8sObject[]
-  appIngresses: MockK8sObject[]
 }
 
 function createState(): MockState {
   return {
     clusters: JSON.parse(JSON.stringify(MOCK_CLUSTERS)),
     nodes: JSON.parse(JSON.stringify(MOCK_NODES)),
-    appIngresses: JSON.parse(JSON.stringify(MOCK_APP_INGRESSES)),
   }
 }
 
@@ -82,7 +80,7 @@ export function controlPlaneHandler(): Handler {
     const path = url.pathname
 
     if (path === `${API_BASE}/clusters` && method === "GET") {
-      return sendJson(res, 200, { apiVersion: "v202607", kind: "ClusterList", items: state.clusters })
+      return sendJson(res, 200, { apiVersion: API_VERSION, kind: "ClusterList", items: state.clusters })
     }
 
     if (path === `${API_BASE}/clusters` && method === "POST") {
@@ -153,12 +151,11 @@ export function controlPlaneHandler(): Handler {
       return sendJson(res, 200, { regions: MOCK_METADATA_REGIONS })
     }
 
-    const collectionMatch = path.match(new RegExp(`^${API_BASE}/clusters/[^/]+/(nodes|appIngresses)(?:/([^/]+))?(?:/bootstrapSecret)?$`))
+    const collectionMatch = path.match(new RegExp(`^${API_BASE}/clusters/[^/]+/nodes(?:/([^/]+))?(?:/bootstrapSecret)?$`))
     if (collectionMatch) {
-      const resourceKind = collectionMatch[1]
-      const itemName = collectionMatch[2]
-      const collection = resourceKind === "nodes" ? state.nodes : state.appIngresses
-      const kind = resourceKind === "nodes" ? "NodeList" : "AppIngressList"
+      const itemName = collectionMatch[1]
+      const collection = state.nodes
+      const kind = "NodeList"
 
       if (path.endsWith("/bootstrapSecret")) {
         if (method === "POST") {
@@ -179,7 +176,7 @@ export function controlPlaneHandler(): Handler {
 
       if (!itemName) {
         if (method === "GET") {
-          return sendJson(res, 200, { apiVersion: "v202607", kind, items: collection })
+          return sendJson(res, 200, { apiVersion: API_VERSION, kind, items: collection })
         }
         if (method === "POST") {
           const body = JSON.parse((await readBody(req)).toString("utf8")) as MockK8sObject
@@ -192,7 +189,7 @@ export function controlPlaneHandler(): Handler {
 
       const index = collection.findIndex((item) => item.metadata?.name === itemName)
       if (index === -1) {
-        return sendJson(res, 404, { message: `${resourceKind} ${itemName} not found` })
+        return sendJson(res, 404, { message: `node ${itemName} not found` })
       }
 
       if (method === "GET") {

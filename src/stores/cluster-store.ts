@@ -8,11 +8,6 @@ interface ClusterMetadata {
   etag?: string
 }
 
-interface ManagedIngressProfile {
-  enabled?: boolean
-  email?: string
-}
-
 interface ClusterSpec {
   region: string
   network: {
@@ -21,9 +16,7 @@ interface ClusterSpec {
     serviceCIDR?: string
     kubeDNSServiceIP?: string
     cni?: string
-    managedIngress?: boolean
   }
-  managedIngressProfile?: ManagedIngressProfile
   storageProfile?: { backend?: string }
   monitoringProfile?: { enabled?: boolean }
   managedControllerProfile?: { enabledControllers?: string[] }

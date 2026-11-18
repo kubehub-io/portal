@@ -397,7 +397,7 @@ function FaqSection() {
           <details className="faq-item">
             <summary className="faq-question">What if I want a custom domain for my app?</summary>
             <div className="faq-answer">
-              <p>Yes. Follow our <a href="https://docs.kubehub.io/bring_your_own_domain/" target="_blank" rel="noreferrer">Bring Your Own Domain guide</a> to point your domain at a KubeHub app and configure it on the app&apos;s AppIngress page.</p>
+              <p>Yes. Follow our <a href="https://docs.kubehub.io/bring_your_own_domain/" target="_blank" rel="noreferrer">Bring Your Own Domain guide</a> to point your domain at a KubeHub app.</p>
             </div>
           </details>
         </div>
