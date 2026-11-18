@@ -18,9 +18,7 @@ export interface MockCluster extends MockK8sObject {
       serviceCIDR?: string
       kubeDNSServiceIP?: string
       cni?: string
-      managedIngress?: boolean
     }
-    managedIngressProfile?: { enabled?: boolean; email?: string }
     storageProfile?: { backend?: string }
     monitoringProfile?: { enabled?: boolean }
     managedControllerProfile?: { enabledControllers?: string[] }
@@ -43,7 +41,7 @@ export const MOCK_K8S_API_URL = "https://localhost:8443"
 
 export const MOCK_CLUSTERS: MockCluster[] = [
   {
-    apiVersion: "v202607",
+    apiVersion: "v202611",
     kind: "Cluster",
     metadata: { name: "demo-cluster", etag: "mock-etag-1" },
     spec: {
@@ -53,10 +51,8 @@ export const MOCK_CLUSTERS: MockCluster[] = [
         serviceCIDR: "10.96.0.0/12",
         kubeDNSServiceIP: "10.96.0.10",
         cni: "cilium",
-        managedIngress: true,
       },
       managedControllerProfile: { enabledControllers: ["clustersettings", "cnpg"] },
-      managedIngressProfile: { enabled: true, email: "admin@kubehub.local" },
       storageProfile: { backend: "longhorn" },
       monitoringProfile: { enabled: true },
     },
@@ -85,7 +81,7 @@ export const MOCK_CLUSTERS: MockCluster[] = [
     },
   },
   {
-    apiVersion: "v202607",
+    apiVersion: "v202611",
     kind: "Cluster",
     metadata: { name: "staging-cluster", etag: "mock-etag-2" },
     spec: {
@@ -95,10 +91,8 @@ export const MOCK_CLUSTERS: MockCluster[] = [
         serviceCIDR: "10.112.0.0/12",
         kubeDNSServiceIP: "10.112.0.10",
         cni: "flannel",
-        managedIngress: false,
       },
       managedControllerProfile: { enabledControllers: ["clustersettings"] },
-      managedIngressProfile: { enabled: false },
       storageProfile: { backend: "longhorn" },
       monitoringProfile: { enabled: true },
     },
@@ -155,48 +149,6 @@ export const MOCK_NODES = [
     status: {
       ready: true,
       lastOperation: { operationName: "NodeReady", state: "COMPLETED" },
-    },
-  },
-]
-
-export const MOCK_APP_INGRESSES = [
-  {
-    apiVersion: "v202607",
-    kind: "AppIngress",
-    metadata: { name: "dashboard", etag: "mock-app-ingress-1" },
-    spec: {
-      serviceBackend: { serviceName: "dashboard", namespace: "default", port: 3000 },
-      exposeToPublic: true,
-      exposeToLocal: true,
-      protocol: "HTTPS",
-    },
-    status: {
-      publicDns: "dashboard.kubehub.local",
-      localDNS: "dashboard.default.svc.cluster.local",
-      state: "Ready",
-      programStatus: {
-        publicDNS: { programed: true, message: "DNS entry is live" },
-        localDNS: { certProvisioned: true, programed: true, message: "TLS provisioned" },
-      },
-    },
-  },
-  {
-    apiVersion: "v202607",
-    kind: "AppIngress",
-    metadata: { name: "api", etag: "mock-app-ingress-2" },
-    spec: {
-      serviceBackend: { serviceName: "api", namespace: "default", port: 8080 },
-      exposeToPublic: false,
-      exposeToLocal: true,
-      protocol: "HTTP",
-    },
-    status: {
-      localDNS: "api.default.svc.cluster.local",
-      state: "Ready",
-      programStatus: {
-        publicDNS: { programed: false, message: "Not exposed publicly" },
-        localDNS: { certProvisioned: false, programed: true, message: "Internal routing active" },
-      },
     },
   },
 ]

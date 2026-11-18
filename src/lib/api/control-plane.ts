@@ -8,32 +8,27 @@ export interface MetadataResponse {
 }
 
 export async function getMetadata(): Promise<MetadataResponse> {
-  const res = await authFetch("/apis/v202607/metadata")
+  const res = await authFetch("/apis/v202611/metadata")
   return res.json()
 }
 
 // ── Clusters ──────────────────────────────────────────────
 
 export async function listClusters(): Promise<Cluster[]> {
-  const res = await authFetch("/apis/v202607/clusters")
+  const res = await authFetch("/apis/v202611/clusters")
   return asItemList<Cluster>(res)
 }
 
 export async function getCluster(name: string): Promise<Cluster> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(name)}`)
+  const res = await authFetch(`/apis/v202611/clusters/${encodeURIComponent(name)}`)
   return res.json()
 }
 
 export async function getClusterETag(name: string): Promise<{ cluster: Cluster; etag?: string }> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(name)}`)
+  const res = await authFetch(`/apis/v202611/clusters/${encodeURIComponent(name)}`)
   const cluster: Cluster = await res.json()
   const etag = cluster.metadata.etag
   return { cluster, etag }
-}
-
-export interface ManagedIngressProfile {
-  enabled?: boolean
-  email?: string
 }
 
 export interface MonitoringProfile {
@@ -53,13 +48,11 @@ export interface Network {
   serviceCIDR?: string
   kubeDNSServiceIP?: string
   cni?: string
-  managedIngress?: boolean
 }
 
 export interface ClusterSpecPatch {
   region?: string
   network?: Network
-  managedIngressProfile?: ManagedIngressProfile
   storageProfile?: StorageProfile
   monitoringProfile?: MonitoringProfile
   managedControllerProfile?: ManagedControllerProfile
@@ -71,7 +64,7 @@ export interface CreateClusterRequest {
 }
 
 export async function createCluster(req: CreateClusterRequest): Promise<Cluster> {
-  const res = await authFetch("/apis/v202607/clusters", {
+  const res = await authFetch("/apis/v202611/clusters", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
@@ -82,7 +75,7 @@ export async function createCluster(req: CreateClusterRequest): Promise<Cluster>
 export async function updateCluster(name: string, req: CreateClusterRequest, etag?: string): Promise<Cluster> {
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (etag) headers["If-Match"] = etag
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(name)}`, {
+  const res = await authFetch(`/apis/v202611/clusters/${encodeURIComponent(name)}`, {
     method: "PUT",
     headers,
     body: JSON.stringify(req),
@@ -98,7 +91,7 @@ export async function deleteCluster(name: string, etag?: string, force?: boolean
     const { etag: fetchedEtag } = await getClusterETag(name)
     if (fetchedEtag) headers["If-Match"] = fetchedEtag
   }
-  let url = `/apis/v202607/clusters/${encodeURIComponent(name)}`
+  let url = `/apis/v202611/clusters/${encodeURIComponent(name)}`
   if (force) {
     url += `?forceDelete=true`
   }
@@ -120,7 +113,7 @@ export async function reconcileCluster(name: string): Promise<Cluster> {
 
 export async function downloadKubeconfig(name: string, certbased = false): Promise<string> {
   const res = await authFetch(
-    `/apis/v202607/clusters/${encodeURIComponent(name)}/downloadkubeconfig?certbased=${certbased}`,
+    `/apis/v202611/clusters/${encodeURIComponent(name)}/downloadkubeconfig?certbased=${certbased}`,
     { method: "POST" },
   )
   const data = await res.json()
@@ -137,13 +130,13 @@ export interface NodeJoinTokenResponse {
 }
 
 export async function issueNodeJoinToken(clusterName: string): Promise<NodeJoinTokenResponse> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/nodeJoinToken`, {
+  const res = await authFetch(`/apis/v202611/clusters/${encodeURIComponent(clusterName)}/nodeJoinToken`, {
     method: "POST",
   })
   return res.json()
 }
 
-// ── Operations (shared by Cluster, Node, AppIngress) ─────
+// ── Operations (shared by Cluster and Node) ──────────────
 
 export interface OperationError {
   code?: string
@@ -212,12 +205,12 @@ export interface Node {
 export type ControlPlaneNode = Node
 
 export async function listControlPlaneNodes(clusterName: string): Promise<Node[]> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/nodes`)
+  const res = await authFetch(`/apis/v202611/clusters/${encodeURIComponent(clusterName)}/nodes`)
   return asItemList<Node>(res)
 }
 
 export async function registerNode(clusterName: string, name: string, ip: string): Promise<Node> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/nodes`, {
+  const res = await authFetch(`/apis/v202611/clusters/${encodeURIComponent(clusterName)}/nodes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -229,12 +222,12 @@ export async function registerNode(clusterName: string, name: string, ip: string
 }
 
 export async function getNode(clusterName: string, nodeName: string): Promise<Node> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/nodes/${encodeURIComponent(nodeName)}`)
+  const res = await authFetch(`/apis/v202611/clusters/${encodeURIComponent(clusterName)}/nodes/${encodeURIComponent(nodeName)}`)
   return res.json()
 }
 
 export async function updateNode(clusterName: string, nodeName: string, spec: NodeSpec, etag: string): Promise<Node> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/nodes/${encodeURIComponent(nodeName)}`, {
+  const res = await authFetch(`/apis/v202611/clusters/${encodeURIComponent(clusterName)}/nodes/${encodeURIComponent(nodeName)}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -248,7 +241,7 @@ export async function updateNode(clusterName: string, nodeName: string, spec: No
 export async function deleteNode(clusterName: string, nodeName: string, etag?: string): Promise<void> {
   const headers: Record<string, string> = {}
   if (etag) headers["If-Match"] = etag
-  await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/nodes/${encodeURIComponent(nodeName)}`, {
+  await authFetch(`/apis/v202611/clusters/${encodeURIComponent(clusterName)}/nodes/${encodeURIComponent(nodeName)}`, {
     method: "DELETE",
     headers,
   })
@@ -277,85 +270,10 @@ export interface BootstrapSecretResponse {
 
 export async function bootstrapNode(clusterName: string, nodeName: string): Promise<BootstrapSecretResponse> {
   const res = await authFetch(
-    `/apis/v202607/clusters/${encodeURIComponent(clusterName)}/nodes/${encodeURIComponent(nodeName)}/bootstrapSecret`,
+    `/apis/v202611/clusters/${encodeURIComponent(clusterName)}/nodes/${encodeURIComponent(nodeName)}/bootstrapSecret`,
     { method: "POST" },
   )
   return res.json()
-}
-
-// ── App Ingresses ────────────────────────────────────────
-
-export interface AppIngress {
-  apiVersion: string
-  kind: string
-  metadata: { name: string; etag?: string }
-  spec: {
-    serviceBackend?: {
-      serviceName: string
-      namespace: string
-      port: number
-    }
-    exposeToPublic?: boolean
-    exposeToLocal?: boolean
-    routesByPrefix?: Record<string, { serviceName: string; namespace: string; port: number }>
-    protocol?: string
-    customDomain?: string
-  }
-  status: {
-    publicDns?: string
-    localDNS?: string
-    programStatus?: {
-      publicDNS?: { programed?: boolean; message?: string }
-      localDNS?: { certProvisioned?: boolean; programed?: boolean; message?: string }
-    }
-    state?: string
-    lastOperation?: OperationStatus
-  }
-}
-
-export async function listAppIngresses(clusterName: string): Promise<AppIngress[]> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/appIngresses`)
-  return asItemList<AppIngress>(res)
-}
-
-export async function getAppIngress(clusterName: string, appName: string): Promise<AppIngress> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/appIngresses/${encodeURIComponent(appName)}`)
-  return res.json()
-}
-
-export async function createAppIngress(clusterName: string, appName: string, spec: AppIngress["spec"]): Promise<AppIngress> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/appIngresses`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ metadata: { name: appName }, spec }),
-  })
-  return res.json()
-}
-
-export async function updateAppIngress(
-  clusterName: string,
-  appName: string,
-  spec: AppIngress["spec"],
-  etag: string,
-): Promise<AppIngress> {
-  const res = await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/appIngresses/${encodeURIComponent(appName)}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "If-Match": etag,
-    },
-    body: JSON.stringify({ spec }),
-  })
-  return res.json()
-}
-
-export async function deleteAppIngress(clusterName: string, appName: string, etag?: string): Promise<void> {
-  const headers: Record<string, string> = {}
-  if (etag) headers["If-Match"] = etag
-  await authFetch(`/apis/v202607/clusters/${encodeURIComponent(clusterName)}/appIngresses/${encodeURIComponent(appName)}`, {
-    method: "DELETE",
-    headers,
-  })
 }
 
 // ── API Error ────────────────────────────────────────────

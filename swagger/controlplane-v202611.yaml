@@ -1,10 +1,10 @@
 openapi: 3.0.0
 info:
   title: Kubehub API
-  version: v202607
-  description: Public API for HKS cluster management
+  version: v202611
+  description: Public API for Kubehub cluster management
 servers:
-  - url: /apis/v202607
+  - url: /apis/v202611
     description: Kubehub API
 paths:
   /clusters:
@@ -379,154 +379,6 @@ paths:
           description: Unauthorized
         '404':
           description: Node not found
-  /clusters/{cluster}/appIngresses:
-    get:
-      summary: List app ingresses
-      description: List all app ingresses for a cluster
-      operationId: listAppIngresses
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: cluster
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: List of app ingresses
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AppIngress'
-        '401':
-          description: Unauthorized
-        '404':
-          description: Cluster not found
-    post:
-      summary: Create app ingress
-      description: Create a new app ingress for a cluster
-      operationId: createAppIngress
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: cluster
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AppIngress'
-      responses:
-        '200':
-          description: App ingress created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppIngress'
-        '400':
-          description: Invalid request
-        '401':
-          description: Unauthorized
-        '404':
-          description: Cluster not found
-        '409':
-          description: App ingress already exists
-  /clusters/{cluster}/appIngresses/{appName}:
-    get:
-      summary: Get app ingress
-      description: Get a specific app ingress by name
-      operationId: getAppIngress
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: cluster
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: appName
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: App ingress details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppIngress'
-        '401':
-          description: Unauthorized
-        '404':
-          description: App ingress not found
-    put:
-      summary: Update app ingress
-      description: Update an existing app ingress
-      operationId: updateAppIngress
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: cluster
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: appName
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AppIngress'
-      responses:
-        '200':
-          description: App ingress updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppIngress'
-        '400':
-          description: Invalid request
-        '401':
-          description: Unauthorized
-        '404':
-          description: App ingress not found
-    delete:
-      summary: Delete app ingress
-      description: Delete a specific app ingress by name
-      operationId: deleteAppIngress
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: cluster
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: appName
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: App ingress deleted
-        '401':
-          description: Unauthorized
-        '404':
-          description: App ingress not found
   /metadata:
     get:
       summary: Get metadata
@@ -575,15 +427,6 @@ components:
           type: string
           description: Entity tag for optimistic concurrency
           readOnly: true
-    ManagedIngressProfile:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-          description: Whether the cluster's ingresses are managed automatically
-        email:
-          type: string
-          description: Let's Encrypt email for automatic certificate provisioning
     ClusterSpec:
       type: object
       properties:
@@ -592,8 +435,6 @@ components:
           description: Cluster region
         network:
           $ref: '#/components/schemas/Network'
-        managedIngressProfile:
-          $ref: '#/components/schemas/ManagedIngressProfile'
         storageProfile:
           $ref: '#/components/schemas/StorageProfile'
         monitoringProfile:
@@ -662,11 +503,6 @@ components:
           type: string
           description: CNI plugin (e.g., cilium, flannel). Defaults to cilium and cannot be changed after creation. Managed ingress is only supported on cilium.
           default: cilium
-        managedIngress:
-          type: boolean
-          description: "Whether the cluster's ingresses are managed automatically (default: true)"
-          default: true
-          deprecated: true
     StorageBackend:
       type: string
       description: Storage backend provider
@@ -835,99 +671,6 @@ components:
         kubeconfig:
           type: string
           description: Base64 encoded kubeconfig
-    AppIngress:
-      type: object
-      properties:
-        apiVersion:
-          type: string
-          description: API version
-        kind:
-          type: string
-          description: Resource kind
-        metadata:
-          $ref: '#/components/schemas/AppIngressMetadata'
-        spec:
-          $ref: '#/components/schemas/AppIngressSpec'
-        status:
-          $ref: '#/components/schemas/AppIngressStatus'
-    AppIngressMetadata:
-      type: object
-      properties:
-        name:
-          type: string
-          description: App ingress name
-        etag:
-          type: string
-          description: Entity tag for optimistic concurrency
-          readOnly: true
-    AppIngressSpec:
-      type: object
-      properties:
-        serviceBackend:
-          $ref: '#/components/schemas/ServiceBackend'
-        exposeToPublic:
-          type: boolean
-          description: Expose to public internet
-        exposeToLocal:
-          type: boolean
-          description: Expose locally within the cluster
-        routesByPrefix:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/ServiceBackend'
-          description: Routes by URL prefix to service backends
-        protocol:
-          type: string
-          description: Protocol (HTTP or TLS, defaults to HTTP)
-          enum: [HTTP, TLS]
-          default: HTTP
-        customDomain:
-          type: string
-          description: Custom domain for public access (must CNAME to the public DNS)
-    PublicDNSStatus:
-      type: object
-      properties:
-        programed:
-          type: boolean
-          description: Whether the public HTTPRoute is accepted by the underlay gateway
-        message:
-          type: string
-          description: Status message if not programmed
-    LocalDNSStatus:
-      type: object
-      properties:
-        certProvisioned:
-          type: boolean
-          description: Whether the TLS certificate is provisioned on the local gateway listener
-        programed:
-          type: boolean
-          description: Whether the local HTTPRoute is accepted by the gateway
-        message:
-          type: string
-          description: Status message if not fully provisioned
-    ProgramStatus:
-      type: object
-      properties:
-        publicDNS:
-          $ref: '#/components/schemas/PublicDNSStatus'
-        localDNS:
-          $ref: '#/components/schemas/LocalDNSStatus'
-    AppIngressStatus:
-      type: object
-      properties:
-        publicDns:
-          type: string
-          description: Public DNS
-        localDNS:
-          type: string
-          description: Local DNS
-        programStatus:
-          $ref: '#/components/schemas/ProgramStatus'
-        state:
-          type: string
-          description: App ingress state
-        lastOperation:
-          $ref: '#/components/schemas/OperationStatus'
     ServiceBackend:
       type: object
       properties:
