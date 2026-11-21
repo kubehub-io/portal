@@ -227,16 +227,6 @@ function FeaturesSection() {
         </div>
         <div className="features-grid">
           <div className="feature-card">
-            <div className="feature-icon">🌐</div>
-            <h3 className="feature-title">Public Apps</h3>
-            <p className="feature-desc">Expose apps at <code>{`{name}.mykube.app`}</code> with automatic SSL, DNS, and routing. No router config needed.</p>
-          </div>
-          <div className="feature-card">
-            <div className="feature-icon">🔒</div>
-            <h3 className="feature-title">Local Apps</h3>
-            <p className="feature-desc">Internal apps at <code>{`{name}.local.mykube.app`}</code> — SSL included, only reachable on your network.</p>
-          </div>
-          <div className="feature-card">
             <div className="feature-icon">🔑</div>
             <h3 className="feature-title">OIDC Auth</h3>
             <p className="feature-desc">Login with GitHub, Google, or Microsoft. No passwords to manage.</p>
@@ -249,12 +239,43 @@ function FeaturesSection() {
           <div className="feature-card">
             <div className="feature-icon">📦</div>
             <h3 className="feature-title">Free Tier</h3>
-            <p className="feature-desc">1 cluster, unlimited local apps, 5 public apps, up to 3 nodes. No credit card required.</p>
+            <p className="feature-desc">1 cluster, unlimited internal app exposure, 5 public app exposures, and up to 3 nodes. No credit card required.</p>
           </div>
           <div className="feature-card">
             <div className="feature-icon">🧩</div>
             <h3 className="feature-title">Huge Ecosystem</h3>
             <p className="feature-desc">All sorts of server app you can find and deploy.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ExposeAppsSection() {
+  return (
+    <section className="section section-alt" id="expose-apps">
+      <div className="container">
+        <div className="section-header">
+          <h2 className="section-title">Expose your apps</h2>
+          <p className="section-subtitle">Choose the simplest way to make a web app available.</p>
+        </div>
+        <div className="features-grid">
+          <div className="feature-card">
+            <div className="feature-icon">⚡</div>
+            <h3 className="feature-title">HubHttpRoute</h3>
+            <p className="feature-desc">
+              Use <code>HubHttpRoute</code> for a low-touch solution with a cloud proxy. Your app is available at <code>{`{name}-xxxxxx.mykube.app`}</code>.
+            </p>
+          </div>
+          <div className="feature-card">
+            <div className="feature-icon">🌐</div>
+            <h3 className="feature-title">HubGatewayProfile</h3>
+            <p className="feature-desc">Use <code>HubGatewayProfile</code> to expose a web app directly from your cluster.</p>
+            <ul className="feature-list">
+              <li><strong>Internal:</strong> <code>{`*.******.localkube.app`}</code> — reachable only on your local network.</li>
+              <li><strong>Public:</strong> <code>{`*.******.mykube.app`}</code> — reachable from the internet.</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -315,8 +336,8 @@ function PricingSection() {
             <ul className="pricing-features">
               <li>1 Kubernetes cluster</li>
               <li>Up to 3 nodes</li>
-              <li>unlimited local apps</li>
-              <li>5 public apps</li>
+              <li>Unlimited internal app exposure</li>
+              <li>5 public app exposures</li>
               <li>OIDC authentication</li>
               <li>Web shell access</li>
               <li>Logs/Metrics</li>
@@ -446,6 +467,7 @@ export default function LandingPage() {
         <HowItWorksSection />
         <UseCasesSection />
         <FeaturesSection />
+        <ExposeAppsSection />
         <ArchitectureSection />
         <PricingSection />
         <FaqSection />

@@ -1,6 +1,7 @@
 "use client"
 
-import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { StatusBadge } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { ContainerStatusSquares } from "@/components/resources/container-status-squares"
 import { PodLogsDialog } from "@/components/resources/pod-logs-dialog"
 import { PodExecDialog } from "@/components/resources/pod-exec-dialog"
@@ -86,7 +87,7 @@ export default function PodsPage() {
   return (
     <div className="space-y-6">
       <ResourcePageHeader title="Pods" subtitle={activeCluster ? `${activeCluster.metadata.name} / pods` : "No active cluster"} />
-      <DataTable
+      <ResourceList
         columns={columns}
         data={items}
         isLoading={isLoading}
@@ -94,6 +95,8 @@ export default function PodsPage() {
         namespace={namespace}
         onNamespaceChange={setNamespace}
         namespaces={namespaces}
+        scopeKey={`pods:${namespace}`}
+        filterPlaceholder="Filter Pods..."
         actions={(item) => {
           const meta = item.metadata as Record<string, unknown> | undefined
           const name = meta?.name as string

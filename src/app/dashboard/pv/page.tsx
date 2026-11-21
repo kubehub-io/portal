@@ -1,6 +1,7 @@
 "use client"
 
-import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { StatusBadge } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
 import { AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -119,11 +120,13 @@ export default function PVPage() {
             : "No active cluster"
         }
       />
-      <DataTable
+      <ResourceList
         columns={columns}
         data={items}
         isLoading={isLoading}
         error={error}
+        scopeKey="persistentvolumes"
+        filterPlaceholder="Filter PersistentVolumes..."
         actions={(item) => {
           const name = String((item.metadata as Record<string, unknown>)?.name ?? "")
           const claim = getPvClaimRef(item)

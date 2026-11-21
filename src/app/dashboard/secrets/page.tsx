@@ -1,6 +1,7 @@
 "use client"
 
-import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { StatusBadge } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
@@ -43,7 +44,7 @@ export default function SecretsPage() {
   return (
     <div className="space-y-6">
       <ResourcePageHeader title="Secrets" subtitle={activeCluster ? `${activeCluster.metadata.name} / secrets` : "No active cluster"} />
-      <DataTable
+      <ResourceList
         columns={columns}
         data={items}
         isLoading={isLoading}
@@ -51,6 +52,8 @@ export default function SecretsPage() {
         namespace={namespace}
         onNamespaceChange={setNamespace}
         namespaces={namespaces}
+        scopeKey={`secrets:${namespace}`}
+        filterPlaceholder="Filter Secrets..."
         actions={(item) => {
           const meta = item.metadata as Record<string, string>
           return (

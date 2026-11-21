@@ -1,7 +1,8 @@
 "use client"
 
 import { AlertTriangle, HardDrive } from "lucide-react"
-import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { StatusBadge } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
@@ -126,7 +127,7 @@ export default function PVCPage() {
             : "No active cluster"
         }
       />
-      <DataTable
+      <ResourceList
         columns={columns}
         data={items}
         isLoading={isLoading}
@@ -134,6 +135,8 @@ export default function PVCPage() {
         namespace={namespace}
         onNamespaceChange={setNamespace}
         namespaces={namespaces}
+        scopeKey={`persistentvolumeclaims:${namespace}`}
+        filterPlaceholder="Filter PersistentVolumeClaims..."
         actions={(item) => {
           const meta = item.metadata as Record<string, string>
           const impact = getPvcDeletionImpact(item, volumes)

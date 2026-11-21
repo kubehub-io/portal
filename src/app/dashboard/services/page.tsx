@@ -1,6 +1,7 @@
 "use client"
 
-import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { StatusBadge } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { useState } from "react"
@@ -41,7 +42,7 @@ export default function ServicesPage() {
   return (
     <div className="space-y-6">
       <ResourcePageHeader title="Services" subtitle={activeCluster ? `${activeCluster.metadata.name} / services` : "No active cluster"} />
-      <DataTable
+      <ResourceList
         columns={columns}
         data={items}
         isLoading={isLoading}
@@ -49,6 +50,8 @@ export default function ServicesPage() {
         namespace={namespace}
         onNamespaceChange={setNamespace}
         namespaces={namespaces}
+        scopeKey={`services:${namespace}`}
+        filterPlaceholder="Filter Services..."
         actions={(item) => {
           const meta = item.metadata as Record<string, string>
           return (

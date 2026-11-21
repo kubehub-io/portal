@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { DataTable, StatusBadge, type ColumnDef } from "@/components/resources/data-table"
+import { StatusBadge, type ColumnDef } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { useClusterStore } from "@/stores/cluster-store"
 import { listControlPlaneNodes, deleteNode } from "@/lib/api/control-plane"
 import { listClusterScopedResources, deleteK8sResource } from "@/lib/api/k8s-client"
@@ -771,20 +772,18 @@ function NodeTable({
   isLoading: boolean
   error: Error | null
 }) {
-  const [page, setPage] = useState(1)
-  const totalPages = Math.max(1, Math.ceil(tableData.length / NODES_PER_PAGE))
-  const currentPage = Math.min(page, totalPages)
-  const paginatedData = tableData.slice((currentPage - 1) * NODES_PER_PAGE, currentPage * NODES_PER_PAGE)
-
+  // Nodes are quota-limited, so keep the fixed page size and hide the picker
+  // and filter while still using the shared list controls above the table.
   return (
-    <DataTable
+    <ResourceList
       columns={columns}
-      data={paginatedData}
+      data={tableData}
       isLoading={isLoading}
       error={error}
-      currentPage={currentPage}
-      totalPages={totalPages}
-      onPageChange={setPage}
+      defaultPageSize={NODES_PER_PAGE}
+      showPageSize={false}
+      filterable={false}
+      scopeKey="nodes"
     />
   )
 }

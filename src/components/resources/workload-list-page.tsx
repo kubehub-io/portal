@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { DataTable, type ColumnDef } from "@/components/resources/data-table"
+import { type ColumnDef } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
 import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
@@ -48,7 +49,7 @@ export function makeWorkloadPage(
           title={label}
           subtitle={activeCluster ? `${activeCluster.metadata.name} / ${resource}` : "No active cluster"}
         />
-        <DataTable
+        <ResourceList
           columns={columns}
           data={items}
           isLoading={isLoading}
@@ -56,6 +57,8 @@ export function makeWorkloadPage(
           namespace={namespace}
           onNamespaceChange={setNamespace}
           namespaces={namespaces}
+          scopeKey={`${resource}:${namespace}`}
+          filterPlaceholder={`Filter ${label}...`}
           actions={(item) => {
             const meta = item.metadata as Record<string, string>
             return (
