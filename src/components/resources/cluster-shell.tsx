@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState, useCallback } from "react"
+import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from "react"
 import { useClusterShell } from "@/hooks/use-cluster-shell"
 import { usePodExec } from "@/hooks/use-pod-exec"
 import { Terminal as Xterm } from "@xterm/xterm"
@@ -18,10 +18,33 @@ const PHASE_LABELS: Record<string, string> = {
   error: "Error",
 }
 
+const FONT_SIZE = 13
+const FONT_FAMILY = "Menlo, Monaco, 'Courier New', monospace"
+
+/** Approximate the panel's terminal size before the shell starts, so the PTY
+ *  is born with the right width instead of the default 80 columns. */
+function measurePanel(element: HTMLDivElement): { cols: number; rows: number } {
+  const rect = element.getBoundingClientRect()
+  const canvas = document.createElement("canvas")
+  const ctx = canvas.getContext("2d")
+  let charWidth = 8
+  if (ctx) {
+    ctx.font = `${FONT_SIZE}px ${FONT_FAMILY}`
+    charWidth = ctx.measureText("M").width || charWidth
+  }
+  // Reserve ~40px for the terminal's own header bar.
+  return {
+    cols: Math.max(20, Math.floor(rect.width / charWidth)),
+    rows: Math.max(10, Math.floor((rect.height - 40) / (FONT_SIZE * 1.2))),
+  }
+}
+
 export function ClusterShell() {
   const { phase, error, podName, namespace, start, retry } = useClusterShell()
   const startedRef = useRef(false)
   const [sessionKey, setSessionKey] = useState(0)
+  const hostRef = useRef<HTMLDivElement>(null)
+  const [initialSize, setInitialSize] = useState<{ cols: number; rows: number } | null>(null)
 
   useEffect(() => {
     if (!startedRef.current) {
@@ -30,21 +53,33 @@ export function ClusterShell() {
     }
   }, [start])
 
+  // Measure once when the shell becomes ready. The size is passed into the
+  // exec command so `stty` sets the PTY width before bash draws its prompt.
+  useLayoutEffect(() => {
+    if (phase !== "ready" || initialSize) return
+    const frame = requestAnimationFrame(() => {
+      if (hostRef.current) setInitialSize(measurePanel(hostRef.current))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [phase, initialSize])
+
   const handleReconnect = useCallback(() => {
     setSessionKey((k) => k + 1)
   }, [])
 
   return (
     <div className="flex h-full flex-col">
-      {phase === "ready" ? (
-        <ShellTerminal
-          key={sessionKey}
-          podName={podName}
-          namespace={namespace}
-          onDisconnected={handleReconnect}
-        />
-      ) : (
-        <div className="flex flex-col items-center justify-center gap-4 p-12 flex-1">
+      <div ref={hostRef} className="min-h-0 flex-1">
+        {phase === "ready" && initialSize ? (
+          <ShellTerminal
+            key={sessionKey}
+            podName={podName}
+            namespace={namespace}
+            initialSize={initialSize}
+            onDisconnected={handleReconnect}
+          />
+        ) : phase === "ready" ? null : (
+          <div className="flex flex-col items-center justify-center gap-4 p-12 h-full">
           {phase === "disabled" ? (
             <>
               <div className="text-center font-medium">Agent Sandbox is not enabled</div>
@@ -70,33 +105,40 @@ export function ClusterShell() {
               <div className="text-sm text-muted-foreground">{PHASE_LABELS[phase] ?? phase}</div>
             </>
           )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
-const SHELL_COMMAND = [
-  "/bin/bash",
-  "--noprofile",
-  "--norc",
-  "-c",
-  "export PS1='sandbox@\\h:\\w\\$ '; exec /bin/bash --norc -i",
-]
-
 function ShellTerminal({
   podName,
   namespace,
+  initialSize,
   onDisconnected,
 }: {
   podName: string
   namespace: string
+  initialSize: { cols: number; rows: number }
   onDisconnected: () => void
 }) {
+  // Set the PTY size from inside the shell right at startup. The resize channel
+  // cannot be trusted to arrive before bash draws its first prompt, and a PTY
+  // stuck at 80 columns makes readline overwrite the line instead of wrapping.
+  const command = useMemo(() => [
+    "/bin/bash",
+    "--noprofile",
+    "--norc",
+    "-c",
+    `stty cols ${initialSize.cols} rows ${initialSize.rows} 2>/dev/null; ` +
+      "export PS1='sandbox:\\w\\$ '; exec /bin/bash --norc -i",
+  ], [initialSize])
+
   const { connected, onOutputRef, getSession } = usePodExec({
     namespace,
     podName,
-    command: SHELL_COMMAND,
+    command,
     containerName: "sandboxd",
   })
   const terminalRef = useRef<HTMLDivElement>(null)
@@ -114,22 +156,49 @@ function ShellTerminal({
   }, [connected])
 
   const doFit = useCallback(() => {
+    const term = termRef.current
+    const node = terminalRef.current
     const fit = fitRef.current
-    if (!fit) return
+    if (!term || !node) return
+
+    let dims: { cols: number; rows: number } | undefined
     try {
-      fit.fit()
-      const dims = fit.proposeDimensions()
-      if (dims) {
-        const sess = getSession()
-        if (sess) sess.resize(dims.cols, dims.rows)
+      fit?.fit()
+      dims = fit?.proposeDimensions()
+    } catch {
+      // Fall back to measuring the panel directly below.
+    }
+    // FitAddon can return undefined when the render service has no cell size
+    // yet; in that case compute the same values from the visible container.
+    if (!dims || !Number.isFinite(dims.cols) || !Number.isFinite(dims.rows)) {
+      const rect = node.getBoundingClientRect()
+      const cell = (term as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: { width?: number; height?: number } } } } } })
+        ._core?._renderService?.dimensions?.css?.cell
+      const charWidth = cell?.width && cell.width > 0 ? cell.width : 8
+      const lineHeight = cell?.height && cell.height > 0 ? cell.height : FONT_SIZE * 1.2
+      if (rect.width > 0 && rect.height > 0) {
+        dims = {
+          cols: Math.max(20, Math.floor(rect.width / charWidth)),
+          rows: Math.max(10, Math.floor(rect.height / lineHeight)),
+        }
       }
+    }
+    if (!dims) return
+    try {
+      if (term.cols !== dims.cols || term.rows !== dims.rows) term.resize(dims.cols, dims.rows)
     } catch {
       // ignore
     }
+    getSession()?.resize(dims.cols, dims.rows)
   }, [getSession])
 
   useEffect(() => {
-    if (connected) doFit()
+    if (!connected) return
+    doFit()
+    // Re-send the size once the shell has started: SIGWINCH makes readline
+    // recompute its wrapping, which fixes a prompt captured at the old width.
+    const timer = window.setTimeout(doFit, 200)
+    return () => window.clearTimeout(timer)
   }, [connected, doFit])
 
   const termInitRef = useRef(false)
@@ -141,8 +210,8 @@ function ShellTerminal({
     const term = new Xterm({
       cursorBlink: true,
       cursorStyle: "block",
-      fontSize: 13,
-      fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+      fontSize: FONT_SIZE,
+      fontFamily: FONT_FAMILY,
       theme: { background: "#000000", foreground: "#00ff00", cursor: "#00ff00" },
       allowProposedApi: true,
     })

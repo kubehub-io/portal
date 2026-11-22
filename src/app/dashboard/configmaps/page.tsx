@@ -1,6 +1,6 @@
 "use client"
 
-import { DataTable } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { useState } from "react"
@@ -45,7 +45,7 @@ export default function ConfigMapsPage() {
         title="ConfigMaps"
         subtitle={activeCluster ? `${activeCluster.metadata.name} / configmaps` : "No active cluster"}
       />
-      <DataTable
+      <ResourceList
         columns={columns}
         data={items}
         isLoading={isLoading}
@@ -53,6 +53,8 @@ export default function ConfigMapsPage() {
         namespace={namespace}
         onNamespaceChange={setNamespace}
         namespaces={namespaces}
+        scopeKey={`configmaps:${namespace}`}
+        filterPlaceholder="Filter ConfigMaps..."
         actions={(item) => {
           const meta = item.metadata as Record<string, string>
           return (

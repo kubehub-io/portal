@@ -1,6 +1,7 @@
 "use client"
 
-import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { StatusBadge } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useAPIDiscovery, resolveResourceInfo } from "@/hooks/use-api-discovery"
 import { useClusterStore } from "@/stores/cluster-store"
@@ -31,7 +32,7 @@ export default function NamespacesPage() {
   return (
     <div className="space-y-6">
       <ResourcePageHeader title="Namespaces" subtitle={activeCluster ? `${activeCluster.metadata.name} / namespaces` : "No active cluster"} />
-      <DataTable columns={columns} data={items} isLoading={isLoading} error={error} />
+      <ResourceList columns={columns} data={items} isLoading={isLoading} error={error} scopeKey="namespaces" filterPlaceholder="Filter Namespaces..." />
     </div>
   )
 }

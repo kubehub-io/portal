@@ -16,8 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react"
+import { Loader2 } from "lucide-react"
 
 export interface ColumnDef {
   key: string
@@ -26,7 +25,7 @@ export interface ColumnDef {
   render?: (value: unknown, item: Record<string, unknown>) => React.ReactNode
 }
 
-interface DataTableProps {
+export interface DataTableProps {
   columns: ColumnDef[]
   data: Record<string, unknown>[]
   isLoading?: boolean
@@ -36,13 +35,10 @@ interface DataTableProps {
   namespaces?: string[]
   actions?: (item: Record<string, unknown>) => React.ReactNode
   getRowClassName?: (item: Record<string, unknown>) => string | undefined
-  currentPage?: number
-  totalPages?: number
-  onPageChange?: (page: number) => void
   emptyMessage?: string
 }
 
-function getNestedValue(obj: unknown, path: string): unknown {
+export function getNestedValue(obj: unknown, path: string): unknown {
   // Kubernetes printer columns can use JSONPath condition filters, for
   // example: .status.conditions[?(@.type=="Accepted")].status
   const tokens = [...path.matchAll(/([^.[\]]+)|\[([^\]]+)\]/g)].map((match) =>
@@ -72,7 +68,7 @@ function getNestedValue(obj: unknown, path: string): unknown {
   }, obj)
 }
 
-function formatValue(value: unknown): string {
+export function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "-"
   if (Array.isArray(value)) {
     if (value.length === 0) return "-"
@@ -113,9 +109,6 @@ export function DataTable({
   namespaces,
   actions,
   getRowClassName,
-  currentPage,
-  totalPages,
-  onPageChange,
   emptyMessage,
 }: DataTableProps) {
   if (isLoading) {
@@ -188,33 +181,6 @@ export function DataTable({
           </TableBody>
         </Table>
       </div>
-      {totalPages !== undefined && totalPages > 0 && currentPage !== undefined && onPageChange && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Page {currentPage} of {totalPages}
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage <= 1}
-              onClick={() => onPageChange(currentPage - 1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage >= totalPages}
-              onClick={() => onPageChange(currentPage + 1)}
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

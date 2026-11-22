@@ -1,6 +1,6 @@
 "use client"
 
-import { DataTable } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
@@ -23,7 +23,7 @@ function makeWorkloadPage(label: string, resource: string, group: string, column
           title={label}
           subtitle={activeCluster ? `${activeCluster.metadata.name} / ${resource}` : "No active cluster"}
         />
-        <DataTable columns={columns} data={items} isLoading={isLoading} error={error} namespace={namespace} onNamespaceChange={setNamespace} namespaces={namespaces} />
+        <ResourceList columns={columns} data={items} isLoading={isLoading} error={error} namespace={namespace} onNamespaceChange={setNamespace} namespaces={namespaces} scopeKey={`${resource}:${namespace}`} filterPlaceholder={`Filter ${label}...`} />
       </div>
     )
   }

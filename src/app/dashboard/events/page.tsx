@@ -1,6 +1,7 @@
 "use client"
 
-import { DataTable, StatusBadge } from "@/components/resources/data-table"
+import { StatusBadge } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { useK8sEvents } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { useState, useMemo, useCallback } from "react"
@@ -14,8 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const PAGE_SIZE = 200
-
 export default function EventsPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
   const namespace = useClusterStore((s) => s.activeNamespace)
@@ -23,7 +22,6 @@ export default function EventsPage() {
   const [reason, setReason] = useState("__all")
   const [type, setType] = useState("__all")
   const [refreshKey, setRefreshKey] = useState(0)
-  const [page, setPage] = useState(1)
 
   const { data: nsData } = useK8sClusterResources(
     { version: "v1", resource: "namespaces" },
@@ -80,27 +78,20 @@ export default function EventsPage() {
     })
   }, [filtered])
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const paged = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-
   const namespaces = (nsData?.items ?? []).map((ns: { metadata: { name: string } }) => ns.metadata.name).sort()
 
   const handleNamespaceChange = useCallback((v: string) => {
     setNamespace(v)
-    setPage(1)
     setRefreshKey((k) => k + 1)
-  }, [])
+  }, [setNamespace])
 
   const handleReasonChange = useCallback((v: string) => {
     setReason(v)
-    setPage(1)
     setRefreshKey((k) => k + 1)
   }, [])
 
   const handleTypeChange = useCallback((v: string) => {
     setType(v)
-    setPage(1)
     setRefreshKey((k) => k + 1)
   }, [])
 
@@ -170,14 +161,13 @@ export default function EventsPage() {
           </Select>
         </div>
       </div>
-      <DataTable
+      <ResourceList
         columns={columns}
-        data={paged}
+        data={sorted}
         isLoading={isLoading}
         error={error}
-        currentPage={safePage}
-        totalPages={totalPages}
-        onPageChange={setPage}
+        scopeKey={`${namespace}:${reason}:${type}`}
+        filterPlaceholder="Filter events..."
       />
     </div>
   )

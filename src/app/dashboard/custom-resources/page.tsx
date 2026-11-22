@@ -6,7 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAPIDiscovery } from "@/hooks/use-api-discovery"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
-import { DataTable, type ColumnDef } from "@/components/resources/data-table"
+import { type ColumnDef } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { HostnameList } from "@/components/resources/hostname-list"
 import {
   HttpRouteConditions,
@@ -53,8 +54,6 @@ import {
 } from "@/components/ui/select"
 import { Check, ChevronsUpDown, Loader2, Trash2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-const PAGE_SIZE = 10
 
 interface PrinterColumn {
   name: string
@@ -268,13 +267,6 @@ function CustomResourcesContent() {
     return map
   }, [crdData])
 
-  const [currentPage, setCurrentPage] = useState(1)
-  const [paginationScope, setPaginationScope] = useState({ typeKey: selectedTypeKey, namespace })
-  if (paginationScope.typeKey !== selectedTypeKey || paginationScope.namespace !== namespace) {
-    setPaginationScope({ typeKey: selectedTypeKey, namespace })
-    setCurrentPage(1)
-  }
-
   const desc: ResourceDescriptor | null = selectedType
     ? {
         group: selectedType.group || undefined,
@@ -428,9 +420,6 @@ function CustomResourcesContent() {
     [resourceData],
   )
 
-  const totalPages = Math.ceil(items.length / PAGE_SIZE)
-  const paginatedItems = items.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-
   const [editTarget, setEditTarget] = useState<{ name: string; namespace?: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ name: string; namespace?: string } | null>(
     null,
@@ -497,14 +486,13 @@ function CustomResourcesContent() {
       </div>
 
       {selectedType && (
-        <DataTable
+        <ResourceList
           columns={columns}
-          data={paginatedItems}
+          data={items}
           isLoading={resourcesLoading}
           error={resourcesError}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
+          scopeKey={`${selectedTypeKey}:${namespace}`}
+          filterPlaceholder={`Filter ${selectedType.kind}...`}
           actions={(item) => {
             const meta = item.metadata as Record<string, string>
             const deleting = deleteMutation.isPending && deleteMutation.variables?.name === meta.name

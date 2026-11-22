@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useClusters, useDeleteCluster, useDownloadKubeconfig, useReconcileCluster } from "@/hooks/use-clusters"
 import { startCluster as doStartCluster, listControlPlaneNodes } from "@/lib/api/control-plane"
 import { ClusterDialog } from "@/components/cluster-dialog"
@@ -40,11 +41,13 @@ function isReconcileStuck(cluster: { status?: { lastOperation?: { operationName?
   return Date.now() - started > RECONCILE_STUCK_THRESHOLD_MS
 }
 
-export default function ClustersPage() {
+function ClustersContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { clusters, isLoading, error } = useClusters()
   const deleteCluster = useDeleteCluster()
   const downloadKubeconfig = useDownloadKubeconfig()
-  const [createOpen, setCreateOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(() => searchParams.get("create") === "1")
   const [editCluster, setEditCluster] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState("")
@@ -58,6 +61,16 @@ export default function ClustersPage() {
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState("")
   const reconcileCluster = useReconcileCluster()
+
+  // ?create=1 (from the setup prompt) opens the dialog on first render; the
+  // effect only removes the one-shot flag from the URL afterwards.
+  useEffect(() => {
+    if (searchParams.get("create") !== "1") return
+    const next = new URLSearchParams(searchParams.toString())
+    next.delete("create")
+    const query = next.toString()
+    router.replace(`/dashboard/clusters${query ? `?${query}` : ""}`, { scroll: false })
+  }, [router, searchParams])
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return
@@ -476,5 +489,13 @@ choco install kubelogin`}</pre>
       </Dialog>
     </div>
     </TooltipProvider>
+  )
+}
+
+export default function ClustersPage() {
+  return (
+    <Suspense fallback={null}>
+      <ClustersContent />
+    </Suspense>
   )
 }

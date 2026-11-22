@@ -100,7 +100,11 @@ export async function refreshAccessToken(refreshToken: string): Promise<TokenRes
 export function decodeToken(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split(".")[1]
-    return JSON.parse(atob(payload))
+    if (!payload) return null
+    // JWTs are base64url encoded; atob only accepts standard base64.
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/")
+    const decoded = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")))
+    return decoded && typeof decoded === "object" ? (decoded as Record<string, unknown>) : null
   } catch {
     return null
   }

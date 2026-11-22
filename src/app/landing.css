@@ -491,6 +491,26 @@
   font-size: 0.8rem;
 }
 
+.landing-page .feature-list {
+  margin: 1rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--color-muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.landing-page .feature-list li + li {
+  margin-top: 0.5rem;
+}
+
+.landing-page .feature-list code {
+  background: var(--color-muted);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.8rem;
+}
+
 /* Architecture */
 .landing-page .arch-content {
   display: flex;
