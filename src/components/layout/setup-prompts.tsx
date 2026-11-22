@@ -57,9 +57,9 @@ export function SetupPrompts() {
           <div className="flex justify-end">
             <Button asChild>
               {prompt === "cluster" ? (
-                <Link href="/dashboard/clusters">Create Cluster <ArrowRight className="h-4 w-4" /></Link>
+                <Link href="/dashboard/clusters?create=1">Create Cluster <ArrowRight className="h-4 w-4" /></Link>
               ) : (
-                <Link href="/dashboard/nodes">Go to Nodes <ArrowRight className="h-4 w-4" /></Link>
+                <Link href="/dashboard/nodes?addNode=1">Add Node <ArrowRight className="h-4 w-4" /></Link>
               )}
             </Button>
           </div>

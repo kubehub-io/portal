@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { StatusBadge, type ColumnDef } from "@/components/resources/data-table"
 import { ResourceList } from "@/components/resources/resource-list"
@@ -191,7 +192,9 @@ function detailRows(obj: Record<string, unknown>, prefix = ""): { label: string;
   return rows
 }
 
-export default function NodesPage() {
+function NodesContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const activeCluster = useClusterStore((s) => s.activeCluster)
   const isOffline = activeCluster?.status?.state?.toLowerCase() === "stopped"
   const clusterDns = activeCluster?.status.publicDns
@@ -252,9 +255,20 @@ export default function NodesPage() {
     return merged
   }, [cpQuery.data, cpQuery.error, k8sQuery.data, k8sQuery.error])
 
-  const [addOpen, setAddOpen] = useState(false)
-  const [clusterStoppedOpen, setClusterStoppedOpen] = useState(false)
+  // ?addNode=1 (from the setup prompt) opens the dialog on first render.
+  const wantsAddNode = searchParams.get("addNode") === "1"
+  const [addOpen, setAddOpen] = useState(wantsAddNode && !isOffline)
+  const [clusterStoppedOpen, setClusterStoppedOpen] = useState(wantsAddNode && isOffline)
   const [scriptCopied, setScriptCopied] = useState(false)
+
+  // Remove the one-shot flag from the URL after the dialog has opened.
+  useEffect(() => {
+    if (!wantsAddNode) return
+    const next = new URLSearchParams(searchParams.toString())
+    next.delete("addNode")
+    const query = next.toString()
+    router.replace(`/dashboard/nodes${query ? `?${query}` : ""}`, { scroll: false })
+  }, [router, searchParams, wantsAddNode])
 
   const {
     token: joinToken,
@@ -785,5 +799,13 @@ function NodeTable({
       filterable={false}
       scopeKey="nodes"
     />
+  )
+}
+
+export default function NodesPage() {
+  return (
+    <Suspense fallback={null}>
+      <NodesContent />
+    </Suspense>
   )
 }

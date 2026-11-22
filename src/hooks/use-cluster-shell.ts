@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react"
 import { getK8sApiBase } from "@/lib/api/k8s-client"
+import { decodeToken } from "@/lib/auth/pkce"
 import { getConfig } from "@/lib/config"
 import { useAuthStore } from "@/stores/auth-store"
 import { useClusterStore } from "@/stores/cluster-store"
@@ -11,31 +12,202 @@ const SANDBOX_RUNTIME_CLASS = "gvisor"
 const SANDBOX_API = "agents.x-k8s.io/v1beta1"
 const SANDBOX_RESOURCE = "sandboxes"
 const POD_NAME_ANNOTATION = "agents.x-k8s.io/pod-name"
+const CONFIG_FINGERPRINT_ANNOTATION = "shell.kubehub.io/config-hash"
+const OWNER_ANNOTATION = "shell.kubehub.io/user"
+const CONFIG_MAP_PREFIX = "shell-config-"
+const CONFIG_MAP_KEY = "config.json"
+const SANDBOX_NAME_PREFIX = "portal-shell-"
+const WORKSPACE_VOLUME = "workspace"
 // This is a lease, not the session lifetime. It is renewed while this browser
 // tab is alive; if the tab crashes or closes without cleanup, the last lease
-// expires and the controller deletes the Sandbox.
+// expires and the controller tears down the Sandbox.
 const SANDBOX_LEASE_SECONDS = 5 * 60
 const SANDBOX_LEASE_RENEWAL_MS = 60_000
 const READY_TIMEOUT_MS = 120_000
 const DEFAULT_SANDBOX_IMAGE = "ghcr.io/kubehub-io/portal-sandboxd:main-20261013-2"
+const DEFAULT_WORKSPACE_SIZE = "1Gi"
+
+type Isolation = "gvisor" | "usernamespace"
+
+/** Settings resolved from shell-config-<subject> in the agent-sandbox namespace. */
+export interface ShellOptions {
+  /** A workspace PVC is created only when storage is configured. */
+  storageEnabled: boolean
+  storageSize: string
+  storageClass?: string
+  isolation: Isolation
+  image: string
+}
 
 function shutdownTime(): string {
   return new Date(Date.now() + SANDBOX_LEASE_SECONDS * 1000).toISOString()
 }
 
-function shellName(): string {
-  const key = "kubehub:agent-sandbox-session"
-  let sessionId = ""
+/** Derive a DNS-safe suffix from the authenticated user's `sub` claim. */
+function subjectSuffix(): string {
+  const { accessToken, idToken } = useAuthStore.getState()
+  const claims = (accessToken ? decodeToken(accessToken) : null) ?? (idToken ? decodeToken(idToken) : null)
+  const sub = claims?.sub
+  const value = typeof sub === "string" ? sub : ""
+  const suffix = value
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]+/g, "-")
+    .replace(/^[.-]+|[.-]+$/g, "")
+    .replace(/-+/g, "-")
+    .slice(0, 200)
+  return suffix || "unknown"
+}
+
+/**
+ * JSON.parse rejects trailing commas and comments, both common in hand-edited
+ * YAML block scalars. Strip them (while respecting strings) before parsing.
+ */
+function parseConfigJson(raw: string): unknown {
   try {
-    sessionId = sessionStorage.getItem(key) ?? ""
-    if (!sessionId) {
-      sessionId = crypto.randomUUID().slice(0, 8)
-      sessionStorage.setItem(key, sessionId)
-    }
+    return JSON.parse(raw)
   } catch {
-    sessionId = crypto.randomUUID().slice(0, 8)
+    // fall through to the tolerant pass
   }
-  return `portal-shell-${sessionId}`
+
+  let clean = ""
+  let inString = false
+  let escaped = false
+  let lineComment = false
+  let blockComment = false
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i]
+    const next = raw[i + 1]
+    if (lineComment) {
+      if (ch === "\n") {
+        lineComment = false
+        clean += ch
+      }
+      continue
+    }
+    if (blockComment) {
+      if (ch === "*" && next === "/") {
+        blockComment = false
+        i += 1
+      }
+      continue
+    }
+    if (inString) {
+      clean += ch
+      if (escaped) escaped = false
+      else if (ch === "\\") escaped = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') {
+      inString = true
+      clean += ch
+      continue
+    }
+    if (ch === "/" && next === "/") {
+      lineComment = true
+      i += 1
+      continue
+    }
+    if (ch === "/" && next === "*") {
+      blockComment = true
+      i += 1
+      continue
+    }
+    clean += ch
+  }
+
+  let result = ""
+  inString = false
+  escaped = false
+  for (let i = 0; i < clean.length; i += 1) {
+    const ch = clean[i]
+    if (inString) {
+      result += ch
+      if (escaped) escaped = false
+      else if (ch === "\\") escaped = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') {
+      inString = true
+      result += ch
+      continue
+    }
+    if (ch === ",") {
+      let j = i + 1
+      while (j < clean.length && /\s/.test(clean[j])) j += 1
+      if (clean[j] === "}" || clean[j] === "]") continue
+    }
+    result += ch
+  }
+  try {
+    return JSON.parse(result)
+  } catch (error) {
+    // Keep the engine's message (it usually includes the character position).
+    throw new Error(error instanceof Error ? error.message : String(error))
+  }
+}
+
+/** Parse config.json from the shell config ConfigMap, filling in all defaults. */
+function parseShellConfig(raw: string | undefined, defaultImage: string, configMapRef: string): ShellOptions {
+  const defaults: ShellOptions = {
+    storageEnabled: false,
+    storageSize: DEFAULT_WORKSPACE_SIZE,
+    isolation: "gvisor",
+    image: defaultImage,
+  }
+  if (!raw || !raw.trim()) return defaults
+
+  const invalid = (detail: string) =>
+    new Error(`Invalid ${CONFIG_MAP_KEY} in ConfigMap ${configMapRef}: ${detail}`)
+
+  let parsed: unknown
+  try {
+    parsed = parseConfigJson(raw.replace(/^\uFEFF/, ""))
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    const preview = raw.replace(/\s+/g, " ").trim().slice(0, 240)
+    throw invalid(`${detail}. Content: ${preview}`)
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw invalid("top level must be a JSON object")
+  }
+
+  const config = parsed as Record<string, unknown>
+  if (config.storage !== undefined && (typeof config.storage !== "object" || config.storage === null || Array.isArray(config.storage))) {
+    throw invalid("storage must be an object, for example {\"size\":\"1Gi\"}")
+  }
+  if (config.security !== undefined && (typeof config.security !== "object" || config.security === null || Array.isArray(config.security))) {
+    throw invalid("security must be an object, for example {\"isolation\":\"gvisor\"}")
+  }
+  const storage = (config.storage ?? {}) as Record<string, unknown>
+  const security = (config.security ?? {}) as Record<string, unknown>
+
+  if (storage.size !== undefined && typeof storage.size !== "string") {
+    throw invalid("storage.size must be a string containing a Kubernetes quantity, e.g. \"1Gi\"")
+  }
+  if (storage.class !== undefined && typeof storage.class !== "string") {
+    throw invalid("storage.class must be a string naming an existing StorageClass")
+  }
+
+  // The presence of `storage` opts into a persistent workspace. Retention and
+  // reclaim policy belong to the chosen StorageClass, not to the portal.
+  const storageEnabled = config.storage !== undefined
+  const size = typeof storage.size === "string" && storage.size.trim() ? storage.size.trim() : defaults.storageSize
+  const storageClass = typeof storage.class === "string" && storage.class.trim() ? storage.class.trim() : undefined
+
+  if (security.isolation !== undefined && typeof security.isolation !== "string") {
+    throw invalid("security.isolation must be \"gvisor\" or \"usernamespace\"")
+  }
+  const isolationText = typeof security.isolation === "string" ? security.isolation.trim().toLowerCase() : ""
+  if (isolationText && !["gvisor", "usernamespace", "userns"].includes(isolationText)) {
+    throw invalid(`security.isolation "${security.isolation}" is invalid; expected "gvisor" or "usernamespace"`)
+  }
+  const isolation: Isolation = isolationText === "usernamespace" || isolationText === "userns"
+    ? "usernamespace"
+    : "gvisor"
+
+  return { storageEnabled, storageSize: size, storageClass, isolation, image: defaultImage }
 }
 
 function getHeaders(token: string, dns: string, json = false): Record<string, string> {
@@ -125,6 +297,116 @@ async function ensureSandboxRuntimeClass(base: string, token: string, dns: strin
   } catch (error) {
     if (!(error instanceof Error) || !error.message.startsWith("POST 409")) throw error
   }
+}
+
+/**
+ * The workspace claim is created by the portal, not by the Sandbox controller,
+ * so it is not owned by the Sandbox and survives its deletion. The StorageClass
+ * (and therefore the reclaim policy) is chosen by the admin via config.json;
+ * omitting `class` uses the cluster's default StorageClass.
+ */
+async function ensureWorkspacePVC(
+  base: string,
+  token: string,
+  dns: string,
+  name: string,
+  options: ShellOptions,
+): Promise<void> {
+  const url = `${base}/api/v1/namespaces/${SANDBOX_NAMESPACE}/persistentvolumeclaims/${name}`
+  try {
+    await requestJson(url, token, dns)
+    return
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith("GET 404")) throw error
+  }
+
+  try {
+    await requestJson(`${base}/api/v1/namespaces/${SANDBOX_NAMESPACE}/persistentvolumeclaims`, token, dns, {
+      method: "POST",
+      body: JSON.stringify({
+        apiVersion: "v1",
+        kind: "PersistentVolumeClaim",
+        metadata: {
+          name,
+          namespace: SANDBOX_NAMESPACE,
+          annotations: { [OWNER_ANNOTATION]: name.slice(SANDBOX_NAME_PREFIX.length) },
+        },
+        spec: {
+          accessModes: ["ReadWriteOnce"],
+          ...(options.storageClass ? { storageClassName: options.storageClass } : {}),
+          resources: { requests: { storage: options.storageSize } },
+        },
+      }),
+    })
+  } catch (error) {
+    // Another tab may have created it between GET and POST.
+    if (!(error instanceof Error) || !error.message.startsWith("POST 409")) throw error
+  }
+}
+
+/**
+ * ReadWriteOnce means a second Pod cannot mount the workspace while the old
+ * sandbox Pod is still terminating. Wait for it to disappear before creating a
+ * new Sandbox so exactly one shell Pod ever mounts the volume.
+ */
+async function waitForWorkspaceFree(
+  base: string,
+  token: string,
+  dns: string,
+  claimName: string,
+  isAborted: () => boolean,
+): Promise<void> {
+  const url = `${base}/api/v1/namespaces/${SANDBOX_NAMESPACE}/pods`
+  const deadline = Date.now() + 60_000
+  while (Date.now() < deadline) {
+    if (isAborted()) throw new Error("Sandbox startup cancelled")
+    const list = await requestJson(url, token, dns)
+    const pods = (list.items ?? []) as Record<string, unknown>[]
+    const isMounted = pods.some((pod) => {
+      const spec = pod.spec as Record<string, unknown> | undefined
+      const volumes = spec?.volumes as Record<string, unknown>[] | undefined
+      const metadata = pod.metadata as Record<string, unknown> | undefined
+      const terminating = !!metadata?.deletionTimestamp
+      const mounted = volumes?.some(
+        (volume) => (volume.persistentVolumeClaim as Record<string, unknown> | undefined)?.claimName === claimName,
+      )
+      return !!mounted && !terminating
+    })
+    if (!isMounted) return
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+  throw new Error(`Workspace ${claimName} is still mounted by another Pod`)
+}
+
+/** Reads config.json from shell-config-<subject> in agent-sandbox; 404 means defaults. */
+async function readShellOptions(
+  base: string,
+  token: string,
+  dns: string,
+  suffix: string,
+  defaultImage: string,
+): Promise<ShellOptions> {
+  let data: Record<string, unknown> = {}
+  const url = `${base}/api/v1/namespaces/${SANDBOX_NAMESPACE}/configmaps/${CONFIG_MAP_PREFIX}${suffix}`
+  try {
+    const configMap = await requestJson(url, token, dns)
+    data = (configMap.data as Record<string, unknown>) ?? {}
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.startsWith("GET 404")) throw error
+  }
+
+  const raw = typeof data[CONFIG_MAP_KEY] === "string" ? data[CONFIG_MAP_KEY] as string : undefined
+  return parseShellConfig(raw, defaultImage, `${SANDBOX_NAMESPACE}/${CONFIG_MAP_PREFIX}${suffix}`)
+}
+
+/** Pod-template settings go into an annotation so config edits recreate the Sandbox. */
+function configFingerprint(options: ShellOptions): string {
+  const input = JSON.stringify([options.storageEnabled, options.isolation, options.image])
+  let hash = 0
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 31 + input.charCodeAt(i)) | 0
+  }
+  return (hash >>> 0).toString(36)
 }
 
 function condition(status: Record<string, unknown> | undefined, type: string) {
@@ -229,16 +511,19 @@ interface SandboxLease {
 
 let activeLease: SandboxLease | null = null
 
+function sandboxUrl(lease: SandboxLease): string {
+  return `${lease.base}/apis/${SANDBOX_API}/namespaces/${lease.handle.namespace}/${SANDBOX_RESOURCE}/${lease.handle.name}`
+}
+
 async function renewLease(): Promise<void> {
   if (!activeLease) return
   const token = useAuthStore.getState().accessToken
   if (!token) return
-  const { handle, base, dns } = activeLease
-  await fetch(`${base}/apis/${SANDBOX_API}/namespaces/${handle.namespace}/${SANDBOX_RESOURCE}/${handle.name}`, {
+  await fetch(sandboxUrl(activeLease), {
     method: "PATCH",
     cache: "no-store",
     headers: {
-      ...getHeaders(token, dns),
+      ...getHeaders(token, activeLease.dns),
       "Content-Type": "application/merge-patch+json",
     },
     body: JSON.stringify({
@@ -274,11 +559,7 @@ async function expireActiveLease(): Promise<void> {
   if (lease.timer) clearInterval(lease.timer)
   const token = useAuthStore.getState().accessToken
   if (!token) return
-  await deleteResource(
-    `${lease.base}/apis/${SANDBOX_API}/namespaces/${lease.handle.namespace}/${SANDBOX_RESOURCE}/${lease.handle.name}`,
-    token,
-    lease.dns,
-  ).catch(() => {})
+  await deleteResource(sandboxUrl(lease), token, lease.dns).catch(() => {})
 }
 
 if (typeof window !== "undefined") {
@@ -309,7 +590,7 @@ async function waitForSandbox(
     }
 
     const ready = condition(status, "Ready")
-    if (ready?.status === "False" && ["InvalidConfiguration", "PodFailed", "PodSucceeded", "ClaimExpired", "SandboxExpired"].includes(String(ready.reason))) {
+    if (ready?.status === "False" && ["InvalidConfiguration", "PodFailed", "PodSucceeded"].includes(String(ready.reason))) {
       throw new Error(String(ready.message ?? `Sandbox ${name} failed to become ready`))
     }
     await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -322,14 +603,19 @@ async function createSandbox(
   token: string,
   dns: string,
   name: string,
-  image: string,
+  suffix: string,
+  options: ShellOptions,
   isAborted: () => boolean,
 ): Promise<SandboxHandle> {
   const sandboxUrl = `${base}/apis/${SANDBOX_API}/namespaces/${SANDBOX_NAMESPACE}/${SANDBOX_RESOURCE}/${name}`
+  const fingerprint = configFingerprint(options)
+  const lifecycle = { shutdownTime: shutdownTime(), shutdownPolicy: "Delete" }
 
-  // Re-open the same browser-session Sandbox when the dock is remounted.
+  // Re-open the same per-user Sandbox when the dock is remounted.
   try {
     const sandbox = await requestJson(sandboxUrl, token, dns)
+    const metadata = sandbox.metadata as Record<string, unknown> | undefined
+    const annotations = metadata?.annotations as Record<string, unknown> | undefined
     const sandboxSpec = sandbox.spec as Record<string, unknown> | undefined
     const sandboxPodTemplate = sandboxSpec?.podTemplate as Record<string, unknown> | undefined
     const sandboxPodSpec = sandboxPodTemplate?.spec as Record<string, unknown> | undefined
@@ -342,17 +628,17 @@ async function createSandbox(
       sandboxContainerSecurity?.runAsGroup === 0 &&
       sandboxContainerSecurity?.runAsNonRoot === false
 
-    // Pod templates are immutable once the controller has created the pod.
-    // Remove an older non-root Sandbox so the next create uses the root/gVisor
-    // configuration below.
-    if (!runsAsRoot) {
+    // Pod templates are immutable once the controller has created the Pod.
+    // Replace the Sandbox when its settings changed, or when it predates the
+    // per-user/config-hash layout.
+    if (!runsAsRoot || annotations?.[CONFIG_FINGERPRINT_ANNOTATION] !== fingerprint) {
       await deleteResource(sandboxUrl, token, dns)
     } else {
-      // Sandbox lifecycle fields are inline on SandboxSpec (unlike the
-      // nested lifecycle object on SandboxClaim).
       await requestJson(sandboxUrl, token, dns, {
         method: "PATCH",
-        body: JSON.stringify({ spec: { shutdownTime: shutdownTime(), shutdownPolicy: "Delete" } }),
+        body: JSON.stringify({
+          spec: { ...lifecycle, operatingMode: "Running" },
+        }),
       })
     }
     return {
@@ -364,31 +650,48 @@ async function createSandbox(
     if (!(error instanceof Error) || !error.message.startsWith("GET 404")) throw error
   }
 
-  const lifecycle = { shutdownTime: shutdownTime(), shutdownPolicy: "Delete" }
-  const podSpec = {
-    runtimeClassName: "gvisor",
+  const podSpec: Record<string, unknown> = {
+    ...(options.isolation === "gvisor"
+      ? { runtimeClassName: SANDBOX_RUNTIME_CLASS }
+      : // Linux user namespaces map container root to an unprivileged host UID.
+        { hostUsers: false }),
     automountServiceAccountToken: false,
     containers: [{
       name: "sandboxd",
-      image,
+      image: options.image,
       imagePullPolicy: "IfNotPresent",
       env: [
         { name: "HOME", value: "/workspace" },
-        { name: "PS1", value: "sandbox@\\h:\\w\\$ " },
+        { name: "PS1", value: "sandbox:\\w\\$ " },
       ],
       ports: [{ containerPort: 8080, protocol: "TCP" }, { containerPort: 9090, protocol: "TCP" }],
       readinessProbe: { httpGet: { path: "/v1/health", port: 8080 } },
       resources: { requests: { cpu: "250m", "ephemeral-storage": "1Gi", memory: "512Mi" } },
       securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] }, runAsGroup: 0, runAsNonRoot: false, runAsUser: 0 },
       volumeMounts: [
-        { name: "workspace", mountPath: "/workspace" },
+        { name: WORKSPACE_VOLUME, mountPath: "/workspace" },
         { name: "satoken", mountPath: "/var/run/secrets/kubernetes.io/serviceaccount" },
         { name: "ca-crt", mountPath: "/tmp/sa-ca", readOnly: true },
       ],
     }],
     restartPolicy: "OnFailure",
     securityContext: { fsGroup: 0, runAsNonRoot: false, runAsUser: 0, runAsGroup: 0 },
-    volumes: [{ name: "workspace", emptyDir: {} }, { name: "satoken", emptyDir: {} }, { name: "ca-crt", configMap: { name: "kube-root-ca.crt" } }],
+    volumes: [
+      {
+        name: WORKSPACE_VOLUME,
+        // The PVC is created and owned by the portal (not by the Sandbox), so
+        // it is never garbage-collected with the Sandbox. Only this Sandbox's
+        // Pod mounts it, and waitForWorkspaceFree guards against overlap.
+        ...(options.storageEnabled
+          ? { persistentVolumeClaim: { claimName: name } }
+          : { emptyDir: {} }),
+      },
+      { name: "satoken", emptyDir: {} },
+      { name: "ca-crt", configMap: { name: "kube-root-ca.crt" } },
+    ],
+  }
+  if (options.storageEnabled) {
+    await waitForWorkspaceFree(base, token, dns, name, isAborted)
   }
   const sandboxCollectionUrl = `${base}/apis/${SANDBOX_API}/namespaces/${SANDBOX_NAMESPACE}/${SANDBOX_RESOURCE}`
   try {
@@ -397,7 +700,14 @@ async function createSandbox(
       body: JSON.stringify({
         apiVersion: SANDBOX_API,
         kind: "Sandbox",
-        metadata: { name, namespace: SANDBOX_NAMESPACE },
+        metadata: {
+          name,
+          namespace: SANDBOX_NAMESPACE,
+          annotations: {
+            [CONFIG_FINGERPRINT_ANNOTATION]: fingerprint,
+            [OWNER_ANNOTATION]: suffix,
+          },
+        },
         spec: {
           podTemplate: { spec: podSpec },
           failedPodPolicy: "Retain",
@@ -467,20 +777,28 @@ export function useClusterShell() {
     try {
       setState((s) => ({ ...s, phase: "checking", error: null }))
       const base = getK8sApiBase(cluster)
-      await ensureSandboxNamespace(base, token, cluster.status.publicDns)
-      await ensureSandboxRuntimeClass(base, token, cluster.status.publicDns)
-      const name = shellName()
-      const config = await getConfig()
-      const image = config.webShellConfig?.sandboxImage ?? DEFAULT_SANDBOX_IMAGE
+      const dns = cluster.status.publicDns
+      const suffix = subjectSuffix()
+      await ensureSandboxNamespace(base, token, dns)
+      const appConfig = await getConfig()
+      const defaultImage = appConfig.webShellConfig?.sandboxImage ?? DEFAULT_SANDBOX_IMAGE
+      const options = await readShellOptions(base, token, dns, suffix, defaultImage)
+      const name = `${SANDBOX_NAME_PREFIX}${suffix}`
+
+      if (options.isolation === "gvisor") await ensureSandboxRuntimeClass(base, token, dns)
+      if (options.storageEnabled) {
+        await ensureWorkspacePVC(base, token, dns, name, options)
+      }
+
       setState((s) => ({ ...s, phase: "creating" }))
-      const handle = await createSandbox(base, token, cluster.status.publicDns, name, image, () => abortRef.current)
+      const handle = await createSandbox(base, token, dns, name, suffix, options, () => abortRef.current)
       handleRef.current = handle
       if (abortRef.current) return
-      startLease(handle, base, cluster.status.publicDns)
+      startLease(handle, base, dns)
       setState({ phase: "ready", error: null, podName: handle.podName, namespace: handle.namespace })
       void injectShellCredentials(
         base,
-        cluster.status.publicDns,
+        dns,
         handle.namespace,
         useClusterStore.getState().activeNamespace === "__all"
           ? "default"
