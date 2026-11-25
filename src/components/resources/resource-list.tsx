@@ -1,16 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { useMemo, useState, type ReactNode } from "react"
 import {
   DataTable,
   formatValue,
@@ -18,13 +8,11 @@ import {
   type ColumnDef,
   type DataTableProps,
 } from "@/components/resources/data-table"
+import { ResourceListToolbar } from "@/components/resources/resource-list-toolbar"
 
 export const DEFAULT_PAGE_SIZE_OPTIONS = [10, 15, 20, 25, 30]
 
-export type ResourceListProps = Omit<
-  DataTableProps,
-  "data" | "currentPage" | "totalPages" | "onPageChange"
-> & {
+export type ResourceListProps = Omit<DataTableProps, "data"> & {
   /** The full list of items. Filtering and paging are applied inside this component. */
   data: Record<string, unknown>[]
   /** Page sizes offered in the toolbar. */
@@ -38,6 +26,16 @@ export type ResourceListProps = Omit<
   filterPlaceholder?: string
   /** Override the default "search every column" text filter. */
   filterFn?: (item: Record<string, unknown>, query: string) => boolean
+  /**
+   * Extra selectors (for example event reason/type) rendered in the same
+   * toolbar row as the namespace picker and text filter.
+   */
+  filters?: ReactNode
+  /** Namespace picker value. Omit for cluster-scoped resource lists. */
+  namespace?: string
+  onNamespaceChange?: (namespace: string) => void
+  /** Namespaces offered by the picker. Omit to hide the picker. */
+  namespaces?: string[]
   /**
    * Change this when the list's source changes (resource type, namespace, ...)
    * to reset the current page and clear the filter.
@@ -76,6 +74,10 @@ export function ResourceList({
   filterable = true,
   filterPlaceholder = "Filter resources...",
   filterFn,
+  filters,
+  namespace,
+  onNamespaceChange,
+  namespaces,
   scopeKey,
   emptyMessage,
   ...tableProps
@@ -112,92 +114,31 @@ export function ResourceList({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {filterable && (
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value)
-                  setPage(1)
-                }}
-                placeholder={filterPlaceholder}
-                aria-label="Filter resources"
-                className="h-8 w-56 pl-8 pr-8"
-              />
-              {query && (
-                <button
-                  type="button"
-                  aria-label="Clear filter"
-                  onClick={() => {
-                    setQuery("")
-                    setPage(1)
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          )}
-          <span className="text-sm text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? "item" : "items"}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {showPageSize && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Rows per page:</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(value) => {
-                  setPageSize(Number(value))
-                  setPage(1)
-                }}
-              >
-                <SelectTrigger className="h-8 w-16" aria-label="Rows per page">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {pageSizeOptions.map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <span className="text-sm tabular-nums text-muted-foreground">
-            Page {currentPage} of {totalPages}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              disabled={currentPage <= 1}
-              onClick={() => setPage(currentPage - 1)}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage(currentPage + 1)}
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <ResourceListToolbar
+        filters={filters}
+        filterable={filterable}
+        query={query}
+        onQueryChange={(value) => {
+          setQuery(value)
+          setPage(1)
+        }}
+        filterPlaceholder={filterPlaceholder}
+        count={filtered.length}
+        namespace={namespace}
+        onNamespaceChange={onNamespaceChange}
+        namespaces={namespaces}
+        showPageSize={showPageSize}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={(size) => {
+          setPageSize(size)
+          setPage(1)
+        }}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPreviousPage={() => setPage(currentPage - 1)}
+        onNextPage={() => setPage(currentPage + 1)}
+      />
 
       <DataTable
         {...tableProps}

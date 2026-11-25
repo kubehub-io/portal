@@ -56,6 +56,28 @@ describe("ResourceList", () => {
     expect(dataRows()).toHaveLength(5)
   })
 
+  it("renders the namespace picker and extra filters in the same toolbar", () => {
+    render(
+      <ResourceList
+        columns={columns}
+        data={items}
+        namespaces={["default", "kube-system"]}
+        namespace="__all"
+        onNamespaceChange={() => {}}
+        filters={<span>Reason filter</span>}
+      />,
+    )
+
+    expect(screen.getByRole("combobox", { name: "Namespace" })).toBeInTheDocument()
+    expect(screen.getByText("Reason filter")).toBeInTheDocument()
+  })
+
+  it("hides the namespace picker for cluster-scoped lists", () => {
+    render(<ResourceList columns={columns} data={items} />)
+
+    expect(screen.queryByRole("combobox", { name: "Namespace" })).not.toBeInTheDocument()
+  })
+
   it("clamps the page when the list shrinks", () => {
     const { rerender } = render(<ResourceList columns={columns} data={items} />)
     fireEvent.click(screen.getByRole("button", { name: "Next page" }))

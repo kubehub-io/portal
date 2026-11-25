@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { DataTable } from "@/components/resources/data-table"
+import { ResourceList } from "@/components/resources/resource-list"
 import { HttpRouteRules } from "@/components/resources/http-route-details"
 import { HostnameList } from "@/components/resources/hostname-list"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
@@ -97,7 +97,7 @@ export default function HubHttpRoutesPage() {
         subtitle={activeCluster ? `${activeCluster.metadata.name} / hubhttproutes` : "No active cluster"}
         docsHref="https://docs.kubehub.io/use_hubhttproute/"
       />
-      <DataTable
+      <ResourceList
         columns={columns}
         data={items}
         isLoading={isLoading}
@@ -105,6 +105,8 @@ export default function HubHttpRoutesPage() {
         namespace={namespace}
         onNamespaceChange={setNamespace}
         namespaces={namespaces}
+        scopeKey={`hubhttproutes:${namespace}`}
+        filterPlaceholder="Filter HubHttpRoutes..."
         actions={(item) => {
           const meta = item.metadata as Record<string, string>
           return (
