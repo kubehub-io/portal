@@ -9,13 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
 
 export interface ColumnDef {
@@ -30,9 +23,6 @@ export interface DataTableProps {
   data: Record<string, unknown>[]
   isLoading?: boolean
   error?: Error | null
-  namespace?: string
-  onNamespaceChange?: (ns: string) => void
-  namespaces?: string[]
   actions?: (item: Record<string, unknown>) => React.ReactNode
   getRowClassName?: (item: Record<string, unknown>) => string | undefined
   emptyMessage?: string
@@ -104,9 +94,6 @@ export function DataTable({
   data,
   isLoading,
   error,
-  namespace,
-  onNamespaceChange,
-  namespaces,
   actions,
   getRowClassName,
   emptyMessage,
@@ -128,59 +115,39 @@ export function DataTable({
   }
 
   return (
-    <div className="space-y-4">
-      {namespaces && onNamespaceChange && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Namespace:</span>
-          <Select value={namespace ?? ""} onValueChange={onNamespaceChange}>
-            <SelectTrigger className="h-8 w-48">
-              <SelectValue placeholder="All namespaces" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">All namespaces</SelectItem>
-              {namespaces.map((ns) => (
-                <SelectItem key={ns} value={ns}>
-                  {ns}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {columns.map((col) => (
+              <TableHead key={col.key} style={{ width: col.width }}>
+                {col.label}
+              </TableHead>
+            ))}
+            {actions && <TableHead className="w-20">Actions</TableHead>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.length === 0 ? (
             <TableRow>
-              {columns.map((col) => (
-                <TableHead key={col.key} style={{ width: col.width }}>
-                  {col.label}
-                </TableHead>
-              ))}
-              {actions && <TableHead className="w-20">Actions</TableHead>}
+              <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                {emptyMessage ?? "No resources found"}
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                  {emptyMessage ?? "No resources found"}
-                </TableCell>
+          ) : (
+            data.map((item, i) => (
+              <TableRow key={(item.metadata as Record<string, unknown>)?.uid as string ?? i} className={getRowClassName?.(item)}>
+                {columns.map((col) => (
+                  <TableCell key={col.key}>{renderCell(col, item)}</TableCell>
+                ))}
+                {actions && (
+                  <TableCell>{actions(item)}</TableCell>
+                )}
               </TableRow>
-            ) : (
-              data.map((item, i) => (
-                <TableRow key={(item.metadata as Record<string, unknown>)?.uid as string ?? i} className={getRowClassName?.(item)}>
-                  {columns.map((col) => (
-                    <TableCell key={col.key}>{renderCell(col, item)}</TableCell>
-                  ))}
-                  {actions && (
-                    <TableCell>{actions(item)}</TableCell>
-                  )}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   )
 }

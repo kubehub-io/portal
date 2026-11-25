@@ -117,57 +117,48 @@ export default function EventsPage() {
         title="Events"
         subtitle={activeCluster ? `${activeCluster.metadata.name} / events` : "No active cluster"}
       />
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Namespace:</span>
-          <Select value={namespace} onValueChange={handleNamespaceChange}>
-            <SelectTrigger className="h-8 w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">All namespaces</SelectItem>
-              {namespaces.map((ns) => (
-                <SelectItem key={ns} value={ns}>{ns}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Reason:</span>
-          <Select value={reason} onValueChange={handleReasonChange}>
-            <SelectTrigger className="h-8 w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">All reasons</SelectItem>
-              {allReasons.map((r) => (
-                <SelectItem key={r} value={r}>{r}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Type:</span>
-          <Select value={type} onValueChange={handleTypeChange}>
-            <SelectTrigger className="h-8 w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">All types</SelectItem>
-              {allTypes.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
       <ResourceList
         columns={columns}
         data={sorted}
         isLoading={isLoading}
         error={error}
+        namespace={namespace}
+        onNamespaceChange={handleNamespaceChange}
+        namespaces={namespaces}
         scopeKey={`${namespace}:${reason}:${type}`}
         filterPlaceholder="Filter events..."
+        filters={
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Reason:</span>
+              <Select value={reason} onValueChange={handleReasonChange}>
+                <SelectTrigger className="h-8 w-44" aria-label="Reason">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All reasons</SelectItem>
+                  {allReasons.map((r) => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Type:</span>
+              <Select value={type} onValueChange={handleTypeChange}>
+                <SelectTrigger className="h-8 w-36" aria-label="Type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All types</SelectItem>
+                  {allTypes.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        }
       />
     </div>
   )

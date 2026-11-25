@@ -45,13 +45,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Check, ChevronsUpDown, Loader2, Trash2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -448,40 +441,19 @@ function CustomResourcesContent() {
         actions={selectedType && <ResourceTypeStar entry={selectedType} size="sm" />}
       />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Resource Type</label>
-          {discoveryLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading API discovery...
-            </div>
-          ) : (
-            <ResourceTypeCombobox
-              types={resourceTypes}
-              value={selectedTypeKey}
-              onSelect={setPickedTypeKey}
-            />
-          )}
-        </div>
-
-        {selectedType?.namespaced && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Namespace</label>
-            <Select value={namespace ?? "__all"} onValueChange={setNamespace}>
-              <SelectTrigger>
-                <SelectValue placeholder="All namespaces" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">All namespaces</SelectItem>
-                {namespaces.map((ns) => (
-                  <SelectItem key={ns} value={ns}>
-                    {ns}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="max-w-md space-y-2">
+        <label className="text-sm font-medium">Resource Type</label>
+        {discoveryLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading API discovery...
           </div>
+        ) : (
+          <ResourceTypeCombobox
+            types={resourceTypes}
+            value={selectedTypeKey}
+            onSelect={setPickedTypeKey}
+          />
         )}
       </div>
 
@@ -491,6 +463,9 @@ function CustomResourcesContent() {
           data={items}
           isLoading={resourcesLoading}
           error={resourcesError}
+          namespace={selectedType.namespaced ? namespace : undefined}
+          onNamespaceChange={selectedType.namespaced ? setNamespace : undefined}
+          namespaces={selectedType.namespaced ? namespaces : undefined}
           scopeKey={`${selectedTypeKey}:${namespace}`}
           filterPlaceholder={`Filter ${selectedType.kind}...`}
           actions={(item) => {
