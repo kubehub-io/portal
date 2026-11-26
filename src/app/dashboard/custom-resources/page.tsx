@@ -28,6 +28,7 @@ import {
 } from "@/lib/api/k8s-client"
 import {
   buildResourceTypes,
+  parseResourceTypeKey,
   resourceTypeGroupLabel,
   type ResourceTypeEntry,
 } from "@/lib/resource-types"
@@ -247,6 +248,25 @@ function CustomResourcesContent() {
     [resourceTypes, selectedTypeKey],
   )
 
+  // A pinned resource type (favorited tab) deep-links with `?type=…`. In that
+  // case the page is already scoped to that type, so don't show the switcher.
+  // An unknown key (e.g. after a cluster switch) still falls back to the picker.
+  const isPinnedTypeView =
+    !!requestedType && (discoveryLoading || resourceTypes.some((t) => t.key === requestedType))
+
+  // Parse the deep link directly so the header shows the right type while
+  // discovery is still loading. Falls back to the selected entry.
+  const pinnedTypeInfo = useMemo(() => {
+    if (!isPinnedTypeView || !requestedType) return null
+    const parsed = parseResourceTypeKey(requestedType)
+    if (!parsed) return null
+    return {
+      kind: parsed.kind,
+      group: resourceTypeGroupLabel(parsed.group),
+      version: parsed.version,
+    }
+  }, [isPinnedTypeView, requestedType])
+
   const crdColumnMap = useMemo(() => {
     const map: Record<string, PrinterColumn[]> = {}
     if (!crdData?.items) return map
@@ -432,30 +452,36 @@ function CustomResourcesContent() {
   return (
     <div className="space-y-6">
       <ResourcePageHeader
-        title="Custom Resources"
+        title={pinnedTypeInfo?.kind ?? "Custom Resources"}
         subtitle={
-          activeCluster
-            ? `${activeCluster.metadata.name} / custom resources`
-            : "No active cluster"
+          pinnedTypeInfo
+            ? activeCluster
+              ? `${activeCluster.metadata.name}/${pinnedTypeInfo.group}/${pinnedTypeInfo.version}`
+              : "No active cluster"
+            : activeCluster
+              ? `${activeCluster.metadata.name} / custom resources`
+              : "No active cluster"
         }
         actions={selectedType && <ResourceTypeStar entry={selectedType} size="sm" />}
       />
 
-      <div className="max-w-md space-y-2">
-        <label className="text-sm font-medium">Resource Type</label>
-        {discoveryLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading API discovery...
-          </div>
-        ) : (
-          <ResourceTypeCombobox
-            types={resourceTypes}
-            value={selectedTypeKey}
-            onSelect={setPickedTypeKey}
-          />
-        )}
-      </div>
+      {!isPinnedTypeView && (
+        <div className="max-w-md space-y-2">
+          <label className="text-sm font-medium">Resource Type</label>
+          {discoveryLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading API discovery...
+            </div>
+          ) : (
+            <ResourceTypeCombobox
+              types={resourceTypes}
+              value={selectedTypeKey}
+              onSelect={setPickedTypeKey}
+            />
+          )}
+        </div>
+      )}
 
       {selectedType && (
         <ResourceList

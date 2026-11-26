@@ -23,6 +23,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { useNodeJoinToken } from "@/hooks/use-node-join-token"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
+import { ResourceYamlEditDialog, InspectResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import { Plus, Info, Loader2, Trash2, AlertTriangle, Clock, Copy, Check } from "lucide-react"
 
 interface MergedNode {
@@ -177,21 +178,6 @@ function formatRelativeTime(value?: string): string {
   return `${totalSec}s ago`
 }
 
-function detailRows(obj: Record<string, unknown>, prefix = ""): { label: string; value: string }[] {
-  const rows: { label: string; value: string }[] = []
-  for (const [key, val] of Object.entries(obj)) {
-    const label = prefix ? `${prefix}.${key}` : key
-    if (val && typeof val === "object" && !Array.isArray(val)) {
-      rows.push(...detailRows(val as Record<string, unknown>, label))
-    } else if (Array.isArray(val)) {
-      rows.push({ label, value: JSON.stringify(val) })
-    } else {
-      rows.push({ label, value: String(val ?? "-") })
-    }
-  }
-  return rows
-}
-
 function NodesContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -278,7 +264,7 @@ function NodesContent() {
     refresh: refreshJoinToken,
   } = useNodeJoinToken(activeCluster?.metadata.name, addOpen)
 
-  const [detailTarget, setDetailTarget] = useState<MergedNode | null>(null)
+  const [inspectTarget, setInspectTarget] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<MergedNode | null>(null)
   const [deleteError, setDeleteError] = useState("")
   const queryClient = useQueryClient()
@@ -304,13 +290,8 @@ function NodesContent() {
     {
       key: "name",
       label: "Name",
-      render: (value: unknown, item: Record<string, unknown>) => (
-        <button
-          className="text-xs font-medium underline underline-offset-2 hover:text-primary cursor-pointer"
-          onClick={() => setDetailTarget(item as unknown as MergedNode)}
-        >
-          {String(value ?? "-")}
-        </button>
+      render: (value: unknown) => (
+        <span className="text-xs font-medium">{String(value ?? "-")}</span>
       ),
     },
     {
@@ -458,6 +439,9 @@ function NodesContent() {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+            )}
+            {node.k8s && (
+              <InspectResourceButton onClick={() => setInspectTarget(node.name)} />
             )}
             <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(node)}>
               <Trash2 className="h-4 w-4 text-destructive" />
@@ -671,64 +655,16 @@ sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!detailTarget} onOpenChange={(o) => { if (!o) setDetailTarget(null) }}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Node Details — {detailTarget?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {detailTarget && detailTarget.annotations.length > 0 && (
-              <div className="flex gap-2">
-                {detailTarget.annotations.includes("unexpected") && (
-                  <Badge variant="warning">Unexpected — not registered in control plane</Badge>
-                )}
-                {detailTarget.annotations.includes("disconnected") && (
-                  <Badge variant="destructive">Disconnected — not found in Kubernetes</Badge>
-                )}
-              </div>
-            )}
-            {detailTarget && getTaints(detailTarget).length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Taints</h4>
-                <div className="space-y-1">
-                  {getTaints(detailTarget).map((t, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <AlertTriangle className="h-3 w-3 text-yellow-500" />
-                      <span className="font-mono">{t.key}{t.value ? `=${t.value}` : ""}:{t.effect ?? "NoSchedule"}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {detailTarget?.k8s && (
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Kubernetes Node</h4>
-                <div className="space-y-1 text-sm">
-                  {detailRows(detailTarget.k8s as unknown as Record<string, unknown>).map((row) => (
-                    <div key={row.label} className="flex justify-between gap-4 border-b py-1.5 last:border-0">
-                      <span className="text-muted-foreground shrink-0 font-mono text-xs">{row.label}</span>
-                      <span className="text-right font-mono text-xs break-all">{row.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {detailTarget?.cp && (
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Control Plane Node</h4>
-                <div className="space-y-1 text-sm">
-                  {detailRows(detailTarget.cp as unknown as Record<string, unknown>).map((row) => (
-                    <div key={row.label} className="flex justify-between gap-4 border-b py-1.5 last:border-0">
-                      <span className="text-muted-foreground shrink-0 font-mono text-xs">{row.label}</span>
-                      <span className="text-right font-mono text-xs break-all">{row.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ResourceYamlEditDialog
+        open={!!inspectTarget}
+        onOpenChange={(open) => { if (!open) setInspectTarget(null) }}
+        cluster={activeCluster}
+        desc={{ version: "v1", resource: "nodes" }}
+        name={inspectTarget ?? ""}
+        queryKey="k8s-nodes"
+        title="Inspect Node YAML"
+        readOnly
+      />
 
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteError("") } }}>
         <DialogContent>
