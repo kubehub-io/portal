@@ -258,24 +258,42 @@ function ExposeAppsSection() {
       <div className="container">
         <div className="section-header">
           <h2 className="section-title">Expose your apps</h2>
-          <p className="section-subtitle">Choose the simplest way to make a web app available.</p>
+          <p className="section-subtitle">We support multiple way to expose your apps</p>
         </div>
         <div className="features-grid">
           <div className="feature-card">
-            <div className="feature-icon">⚡</div>
+            <div className="feature-icon">☁️</div>
             <h3 className="feature-title">HubHttpRoute</h3>
             <p className="feature-desc">
-              Use <code>HubHttpRoute</code> for a low-touch solution with a cloud proxy. Your app is available at <code>{`{name}-xxxxxx.mykube.app`}</code>.
+              Use <code>HubHttpRoute</code> for a low-touch solution with a cloud proxy. Your app is available at <code>{`{name}-xxxxxx.mykube.app`}</code>. 
+            </p>
+            <p className="feature-desc">
+              No requirement on public IP, no need to config network/router.
             </p>
           </div>
           <div className="feature-card">
             <div className="feature-icon">🌐</div>
             <h3 className="feature-title">HubGatewayProfile</h3>
-            <p className="feature-desc">Use <code>HubGatewayProfile</code> to expose a web app directly from your cluster.</p>
+            <p className="feature-desc">Use <code>HubGatewayProfile</code> to provision native Kubernetes Gateway.</p>
             <ul className="feature-list">
               <li><strong>Internal:</strong> <code>{`*.******.localkube.app`}</code> — reachable only on your local network.</li>
               <li><strong>Public:</strong> <code>{`*.******.mykube.app`}</code> — reachable from the internet.</li>
             </ul>
+            <p className="feature-desc">
+              No cloud proxy involved, your app get served directly on your server, <strong>requires some network setup</strong>.
+            </p>
+          </div>
+          <div className="feature-card">
+            <div className="feature-icon">🌐</div>
+            <h3 className="feature-title">Kubernetes Gateway API</h3>
+            <p className="feature-desc">Manual config</p>
+            <ul className="feature-list">
+              <li><strong>Custom domain</strong></li>
+              <li><strong>Advanced use case</strong></li>
+            </ul>
+            <p className="feature-desc">
+              Advanced user can config Kubernetes Gateway API directly if you have your own domain, or need advanced use case.
+            </p>
           </div>
         </div>
       </div>
@@ -302,7 +320,7 @@ function ArchitectureSection() {
             <div className="arch-point">
               <div className="arch-point-icon">🖥️</div>
               <div>
-                <strong>You handle the compute.</strong> Your machines stay at home. They connect outbound to the API server — no inbound ports, no router config, no static IP needed.
+                <strong>You handle the compute.</strong> Your machines stay at home. They connect outbound to the API server — no inbound ports needed.
               </div>
             </div>
             <div className="arch-point">

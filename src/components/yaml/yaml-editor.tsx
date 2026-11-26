@@ -30,6 +30,24 @@ const containmentTheme = EditorView.theme({
 /** Long lines wrap instead of scrolling sideways, keeping the box at 100%. */
 const lineWrapping = EditorView.lineWrapping
 
+/**
+ * Stable identity is important: @uiw/react-codemirror reconfigures the whole
+ * editor whenever `basicSetup` changes by reference. An inline object literal
+ * here would re-run the reconfigure on every parent render (i.e. every
+ * keystroke), which closes transient UI such as the search panel.
+ */
+const basicSetup = {
+  lineNumbers: true,
+  highlightActiveLine: true,
+  highlightActiveLineGutter: true,
+  bracketMatching: true,
+  closeBrackets: true,
+  indentOnInput: true,
+  foldGutter: true,
+  autocompletion: false,
+  searchKeymap: true,
+} as const
+
 export interface YamlEditorProps {
   value: string
   onChange: (value: string) => void
@@ -57,6 +75,15 @@ export function YamlEditor({
     [extensions],
   )
   const { resolvedTheme } = useTheme()
+
+  // Keep the callback the editor sees stable. @uiw/react-codemirror reconfigures
+  // the editor when `onChange` changes identity, which would also close the
+  // search panel while the user is editing.
+  const onChangeRef = useRef(onChange)
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
+  const handleChange = useCallback((next: string) => onChangeRef.current(next), [])
 
   const [size, setSize] = useState<{ width?: number; height?: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -149,24 +176,14 @@ export function YamlEditor({
     >
       <CodeMirror
         value={value}
-        onChange={onChange}
+        onChange={handleChange}
         height="100%"
         style={{ height: "100%", fontSize: "13px" }}
         theme={resolvedTheme}
         extensions={baseExtensions}
         editable={!readOnly}
         readOnly={readOnly}
-        basicSetup={{
-          lineNumbers: true,
-          highlightActiveLine: true,
-          highlightActiveLineGutter: true,
-          bracketMatching: true,
-          closeBrackets: true,
-          indentOnInput: true,
-          foldGutter: true,
-          autocompletion: false,
-          searchKeymap: true,
-        }}
+        basicSetup={basicSetup}
       />
       {resizable && (
         <div
