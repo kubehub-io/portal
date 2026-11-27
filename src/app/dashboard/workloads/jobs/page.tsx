@@ -1,35 +1,8 @@
 "use client"
 
-import { ResourceList } from "@/components/resources/resource-list"
-import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
-import { useClusterStore } from "@/stores/cluster-store"
-import { ResourcePageHeader } from "@/components/resources/resource-page-header"
+import { makeWorkloadPage } from "@/components/resources/workload-list-page"
 
-function makeWorkloadPage(label: string, resource: string, group: string, columns: { key: string; label: string }[]) {
-  return function WorkloadPage() {
-    const activeCluster = useClusterStore((s) => s.activeCluster)
-    const namespace = useClusterStore((s) => s.activeNamespace)
-    const setNamespace = useClusterStore((s) => s.setActiveNamespace)
-    const { data: nsData } = useK8sClusterResources({ version: "v1", resource: "namespaces" }, "namespaces")
-    const { data, isLoading, error } = useK8sClusterResources({ group, version: "v1", resource }, resource)
-    const namespaces = (nsData?.items ?? []).map((ns: { metadata: { name: string } }) => ns.metadata.name).sort()
-    let items = (data?.items ?? []) as unknown as Record<string, unknown>[]
-    if (namespace && namespace !== "__all") {
-      items = items.filter((i) => (i.metadata as Record<string, unknown>)?.namespace === namespace)
-    }
-    return (
-      <div className="space-y-6">
-        <ResourcePageHeader
-          title={label}
-          subtitle={activeCluster ? `${activeCluster.metadata.name} / ${resource}` : "No active cluster"}
-        />
-        <ResourceList columns={columns} data={items} isLoading={isLoading} error={error} namespace={namespace} onNamespaceChange={setNamespace} namespaces={namespaces} scopeKey={`${resource}:${namespace}`} filterPlaceholder={`Filter ${label}...`} />
-      </div>
-    )
-  }
-}
-
-export default makeWorkloadPage("Jobs", "jobs", "batch", [
+export default makeWorkloadPage("Jobs", "jobs", [
   { key: "metadata.name", label: "Name" },
   { key: "metadata.namespace", label: "Namespace" },
   { key: "spec.completions", label: "Completions" },
@@ -37,4 +10,4 @@ export default makeWorkloadPage("Jobs", "jobs", "batch", [
   { key: "status.succeeded", label: "Succeeded" },
   { key: "status.failed", label: "Failed" },
   { key: "metadata.creationTimestamp", label: "Age" },
-])
+], { desc: { group: "batch", version: "v1", resource: "jobs" } })

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { AlertTriangle, HardDrive } from "lucide-react"
 import { StatusBadge } from "@/components/resources/data-table"
 import { ResourceList } from "@/components/resources/resource-list"
@@ -7,6 +8,7 @@ import { DeleteResourceButton } from "@/components/resources/delete-resource-but
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
+import { ResourceYamlEditDialog, InspectResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import {
   getPvcDeletionImpact,
   type PvcDeletionImpact,
@@ -103,6 +105,8 @@ export default function PVCPage() {
   }
   const volumes = (pvData?.items ?? []) as unknown as Record<string, unknown>[]
 
+  const [inspectTarget, setInspectTarget] = useState<{ name: string; namespace?: string } | null>(null)
+
   const columns = [
     { key: "metadata.name", label: "Name" },
     { key: "metadata.namespace", label: "Namespace" },
@@ -141,17 +145,34 @@ export default function PVCPage() {
           const meta = item.metadata as Record<string, string>
           const impact = getPvcDeletionImpact(item, volumes)
           return (
-            <DeleteResourceButton
-              cluster={activeCluster}
-              desc={PVC_DESC}
-              name={meta.name}
-              namespace={meta.namespace}
-              kind="PersistentVolumeClaim"
-              queryKey="persistentvolumeclaims"
-              warning={<PvcDeletionWarning impact={impact} />}
-            />
+            <div className="flex items-center gap-1">
+              <InspectResourceButton
+                onClick={() => setInspectTarget({ name: meta.name, namespace: meta.namespace })}
+              />
+              <DeleteResourceButton
+                cluster={activeCluster}
+                desc={PVC_DESC}
+                name={meta.name}
+                namespace={meta.namespace}
+                kind="PersistentVolumeClaim"
+                queryKey="persistentvolumeclaims"
+                warning={<PvcDeletionWarning impact={impact} />}
+              />
+            </div>
           )
         }}
+      />
+
+      <ResourceYamlEditDialog
+        open={!!inspectTarget}
+        onOpenChange={(o) => { if (!o) setInspectTarget(null) }}
+        cluster={activeCluster}
+        desc={PVC_DESC}
+        name={inspectTarget?.name ?? ""}
+        namespace={inspectTarget?.namespace}
+        queryKey="persistentvolumeclaims"
+        title="Inspect PersistentVolumeClaim YAML"
+        readOnly
       />
     </div>
   )

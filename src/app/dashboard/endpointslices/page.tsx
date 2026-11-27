@@ -1,9 +1,18 @@
 "use client"
 
+import { useState } from "react"
 import { ResourceList } from "@/components/resources/resource-list"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
+import { ResourceYamlEditDialog, InspectResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
+import { type ResourceDescriptor } from "@/lib/api/k8s-client"
+
+const ENDPOINTSLICE_DESC: ResourceDescriptor = {
+  group: "discovery.k8s.io",
+  version: "v1",
+  resource: "endpointslices",
+}
 
 export default function EndpointSlicesPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
@@ -11,7 +20,7 @@ export default function EndpointSlicesPage() {
   const setNamespace = useClusterStore((s) => s.setActiveNamespace)
   const { data: nsData } = useK8sClusterResources({ version: "v1", resource: "namespaces" }, "namespaces")
   const { data, isLoading, error } = useK8sClusterResources(
-    { group: "discovery.k8s.io", version: "v1", resource: "endpointslices" },
+    ENDPOINTSLICE_DESC,
     "endpointslices",
   )
   const namespaces = (nsData?.items ?? []).map((ns: { metadata: { name: string } }) => ns.metadata.name).sort()
@@ -19,6 +28,8 @@ export default function EndpointSlicesPage() {
   if (namespace && namespace !== "__all") {
     items = items.filter((i) => (i.metadata as Record<string, unknown>)?.namespace === namespace)
   }
+
+  const [inspectTarget, setInspectTarget] = useState<{ name: string; namespace?: string } | null>(null)
 
   const columns = [
     { key: "metadata.name", label: "Name" },
@@ -31,7 +42,37 @@ export default function EndpointSlicesPage() {
   return (
     <div className="space-y-6">
       <ResourcePageHeader title="EndpointSlices" subtitle={activeCluster ? `${activeCluster.metadata.name} / endpointslices` : "No active cluster"} />
-      <ResourceList columns={columns} data={items} isLoading={isLoading} error={error} namespace={namespace} onNamespaceChange={setNamespace} namespaces={namespaces} scopeKey={`endpointslices:${namespace}`} filterPlaceholder="Filter EndpointSlices..." />
+      <ResourceList
+        columns={columns}
+        data={items}
+        isLoading={isLoading}
+        error={error}
+        namespace={namespace}
+        onNamespaceChange={setNamespace}
+        namespaces={namespaces}
+        scopeKey={`endpointslices:${namespace}`}
+        filterPlaceholder="Filter EndpointSlices..."
+        actions={(item) => {
+          const meta = item.metadata as Record<string, string>
+          return (
+            <InspectResourceButton
+              onClick={() => setInspectTarget({ name: meta.name, namespace: meta.namespace })}
+            />
+          )
+        }}
+      />
+
+      <ResourceYamlEditDialog
+        open={!!inspectTarget}
+        onOpenChange={(o) => { if (!o) setInspectTarget(null) }}
+        cluster={activeCluster}
+        desc={ENDPOINTSLICE_DESC}
+        name={inspectTarget?.name ?? ""}
+        namespace={inspectTarget?.namespace}
+        queryKey="endpointslices"
+        title="Inspect EndpointSlice YAML"
+        readOnly
+      />
     </div>
   )
 }

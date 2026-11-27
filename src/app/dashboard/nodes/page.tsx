@@ -22,9 +22,10 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { useNodeJoinToken } from "@/hooks/use-node-join-token"
+import { useNodeReconcileToken } from "@/hooks/use-node-reconcile-token"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
 import { ResourceYamlEditDialog, InspectResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
-import { Plus, Info, Loader2, Trash2, AlertTriangle, Clock, Copy, Check } from "lucide-react"
+import { Plus, Info, Loader2, Trash2, AlertTriangle, Clock, Copy, Check, RotateCw } from "lucide-react"
 
 interface MergedNode {
   name: string
@@ -162,6 +163,86 @@ function formatTokenRemaining(seconds: number): string {
   return `${minutes}:${String(remainder).padStart(2, "0")}`
 }
 
+function NodeCommandPanel({
+  command,
+  token,
+  secondsRemaining,
+  isLoading,
+  error,
+  onRefresh,
+  copied,
+  onCopy,
+  tokenKind,
+}: {
+  command: string
+  token: string | null
+  secondsRemaining: number | null
+  isLoading: boolean
+  error: string | null
+  onRefresh: () => void
+  copied: boolean
+  onCopy: () => void
+  tokenKind: "join" | "reconcile"
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="absolute right-2 top-2 z-10 h-7 px-2 text-xs"
+          onClick={onCopy}
+          disabled={!token}
+        >
+          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+        <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 pr-24 text-xs">
+          <code className="whitespace-pre-wrap break-all font-mono">{command}</code>
+        </pre>
+      </div>
+      {isLoading && !token && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Issuing {tokenKind} token...
+        </div>
+      )}
+      {error && (
+        <div className="flex items-center gap-1.5 text-xs text-destructive">
+          <span>Failed to issue {tokenKind} token: {error}</span>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onClick={onRefresh}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+      {token && secondsRemaining !== null && (
+        <div className="flex items-center gap-1.5 text-xs">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-muted-foreground">
+            Token expires in{" "}
+            <span className={secondsRemaining <= 120 ? "font-mono text-destructive" : "font-mono text-foreground"}>
+              {formatTokenRemaining(secondsRemaining)}
+            </span>
+          </span>
+          {isLoading && (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+              <span className="text-muted-foreground">Refreshing...</span>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function formatRelativeTime(value?: string): string {
   if (!value) return "-"
   const d = new Date(value)
@@ -246,6 +327,7 @@ function NodesContent() {
   const [addOpen, setAddOpen] = useState(wantsAddNode && !isOffline)
   const [clusterStoppedOpen, setClusterStoppedOpen] = useState(wantsAddNode && isOffline)
   const [scriptCopied, setScriptCopied] = useState(false)
+  const [reconcileScriptCopied, setReconcileScriptCopied] = useState(false)
 
   // Remove the one-shot flag from the URL after the dialog has opened.
   useEffect(() => {
@@ -265,8 +347,20 @@ function NodesContent() {
   } = useNodeJoinToken(activeCluster?.metadata.name, addOpen)
 
   const [inspectTarget, setInspectTarget] = useState<string | null>(null)
+  const [reconcileTarget, setReconcileTarget] = useState<MergedNode | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<MergedNode | null>(null)
   const [deleteError, setDeleteError] = useState("")
+  const {
+    token: reconcileToken,
+    secondsRemaining: reconcileTokenRemaining,
+    isLoading: isReconcileTokenLoading,
+    error: reconcileTokenError,
+    refresh: refreshReconcileToken,
+  } = useNodeReconcileToken(
+    activeCluster?.metadata.name,
+    reconcileTarget?.name,
+    !!reconcileTarget,
+  )
   const queryClient = useQueryClient()
   const deleteNodeMutation = useMutation({
     mutationFn: async (node: MergedNode) => {
@@ -443,6 +537,17 @@ function NodesContent() {
             {node.k8s && (
               <InspectResourceButton onClick={() => setInspectTarget(node.name)} />
             )}
+            {node.cp && (
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Reconcile Node"
+                aria-label={`Reconcile node ${node.name}`}
+                onClick={() => setReconcileTarget(node)}
+              >
+                <RotateCw className="h-4 w-4" />
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(node)}>
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
@@ -464,6 +569,12 @@ sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/d
 sudo chmod +x /usr/bin/kubehubcli
 sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-name>"} --device-mode --token ${joinToken?.nodeJoinToken ?? "<token>"}`
 
+  const reconcileCommand = `ARCH="$(uname -m | sed 's/aarch64/arm64/')"
+VERSION="$(curl -fsSL https://api.github.com/repos/kubehub-io/cli/releases/latest | sed -n 's/.*"tag_name": "\\(.*\\)",/\\1/p')"
+sudo curl -o /usr/bin/kubehubcli -L https://github.com/kubehub-io/cli/releases/download/\${VERSION}/cli_Linux_\${ARCH}
+sudo chmod +x /usr/bin/kubehubcli
+sudo kubehubcli node reconcile --cluster ${activeCluster?.metadata.name ?? "<cluster-name>"} --node ${reconcileTarget?.name ?? "<node-name>"} --token ${reconcileToken?.nodeReconcileToken ?? "<token>"}`
+
   async function copyJoinCommand() {
     try {
       await navigator.clipboard.writeText(joinCommand)
@@ -471,6 +582,16 @@ sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-
       window.setTimeout(() => setScriptCopied(false), 2000)
     } catch {
       setScriptCopied(false)
+    }
+  }
+
+  async function copyReconcileCommand() {
+    try {
+      await navigator.clipboard.writeText(reconcileCommand)
+      setReconcileScriptCopied(true)
+      window.setTimeout(() => setReconcileScriptCopied(false), 2000)
+    } catch {
+      setReconcileScriptCopied(false)
     }
   }
 
@@ -550,65 +671,17 @@ sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-
             <div className="space-y-1.5">
               <h4 className="font-semibold">2. SSH and run the join command</h4>
               <p className="text-muted-foreground">SSH into the new node and run (do SSH to it, so your login experience on step 3 is easier):</p>
-              <div className="relative">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="absolute right-2 top-2 z-10 h-7 px-2 text-xs"
-                  onClick={copyJoinCommand}
-                  disabled={!joinToken}
-                >
-                  {scriptCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {scriptCopied ? "Copied" : "Copy"}
-                </Button>
-                <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 pr-24 text-xs">
-                  <code className="whitespace-pre-wrap break-all font-mono">{joinCommand}</code>
-                </pre>
-              </div>
-              {isJoinTokenLoading && !joinToken && (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Issuing join token...
-                </div>
-              )}
-              {joinTokenError && (
-                <div className="flex items-center gap-1.5 text-xs text-destructive">
-                  <span>Failed to issue join token: {joinTokenError}</span>
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs"
-                    onClick={() => void refreshJoinToken()}
-                  >
-                    Retry
-                  </Button>
-                </div>
-              )}
-              {joinToken && joinTokenRemaining !== null && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-muted-foreground">
-                    Token expires in{" "}
-                    <span
-                      className={
-                        joinTokenRemaining <= 120
-                          ? "font-mono text-destructive"
-                          : "font-mono text-foreground"
-                      }
-                    >
-                      {formatTokenRemaining(joinTokenRemaining)}
-                    </span>
-                  </span>
-                  {isJoinTokenLoading && (
-                    <>
-                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                      <span className="text-muted-foreground">Refreshing...</span>
-                    </>
-                  )}
-                </div>
-              )}
+              <NodeCommandPanel
+                command={joinCommand}
+                token={joinToken?.nodeJoinToken ?? null}
+                secondsRemaining={joinTokenRemaining}
+                isLoading={isJoinTokenLoading}
+                error={joinTokenError}
+                onRefresh={() => { void refreshJoinToken() }}
+                copied={scriptCopied}
+                onCopy={() => { void copyJoinCommand() }}
+                tokenKind="join"
+              />
               <p className="text-muted-foreground">
                 View the CLI source:{" "}
                 <a href="https://github.com/kubehub-io/cli" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
@@ -634,6 +707,51 @@ sudo kubehubcli node join --cluster ${activeCluster?.metadata.name ?? "<cluster-
                 After the setup completes, refresh this page to see the node appear in the list.
               </p>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!reconcileTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReconcileTarget(null)
+            setReconcileScriptCopied(false)
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Reconcile Node</DialogTitle>
+            <DialogDescription>
+              Reconcile <span className="font-mono font-medium text-foreground">{reconcileTarget?.name}</span> with cluster{" "}
+              <span className="font-mono font-medium text-foreground">{activeCluster?.metadata.name}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 text-sm">
+            <div className="space-y-1.5">
+              <h4 className="font-semibold">Run the reconcile command on the node</h4>
+              <p className="text-muted-foreground">
+                SSH into the existing node and run this command. It uses a short-lived token scoped to this node.
+              </p>
+              <NodeCommandPanel
+                command={reconcileCommand}
+                token={reconcileToken?.nodeReconcileToken ?? null}
+                secondsRemaining={reconcileTokenRemaining}
+                isLoading={isReconcileTokenLoading}
+                error={reconcileTokenError}
+                onRefresh={() => { void refreshReconcileToken() }}
+                copied={reconcileScriptCopied}
+                onCopy={() => { void copyReconcileCommand() }}
+                tokenKind="reconcile"
+              />
+            </div>
+            <p className="text-muted-foreground">
+              View the CLI source:{" "}
+              <a href="https://github.com/kubehub-io/cli" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+                github.com/kubehub-io/cli
+              </a>
+            </p>
           </div>
         </DialogContent>
       </Dialog>

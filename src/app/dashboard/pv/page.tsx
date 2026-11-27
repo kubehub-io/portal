@@ -3,11 +3,13 @@
 import { StatusBadge } from "@/components/resources/data-table"
 import { ResourceList } from "@/components/resources/resource-list"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
+import { useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
+import { ResourceYamlEditDialog, InspectResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import {
   getPvClaimRef,
   getPvMounts,
@@ -43,6 +45,8 @@ export default function PVPage() {
   const items = (data?.items ?? []) as unknown as Record<string, unknown>[]
   const pods = (podData?.items ?? []) as unknown as Record<string, unknown>[]
   const claims = (pvcData?.items ?? []) as unknown as Record<string, unknown>[]
+
+  const [inspectTarget, setInspectTarget] = useState<string | null>(null)
 
   const columns = [
     { key: "metadata.name", label: "Name" },
@@ -140,6 +144,7 @@ export default function PVPage() {
           )
           return (
             <div className="flex items-center gap-2">
+              <InspectResourceButton onClick={() => setInspectTarget(name)} />
               <DeleteResourceButton
                 cluster={activeCluster}
                 desc={PV_DESC}
@@ -156,6 +161,17 @@ export default function PVPage() {
             </div>
           )
         }}
+      />
+
+      <ResourceYamlEditDialog
+        open={!!inspectTarget}
+        onOpenChange={(o) => { if (!o) setInspectTarget(null) }}
+        cluster={activeCluster}
+        desc={PV_DESC}
+        name={inspectTarget ?? ""}
+        queryKey="persistentvolumes"
+        title="Inspect PersistentVolume YAML"
+        readOnly
       />
     </div>
   )

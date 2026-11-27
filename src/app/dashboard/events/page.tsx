@@ -7,6 +7,8 @@ import { useClusterStore } from "@/stores/cluster-store"
 import { useState, useMemo, useCallback } from "react"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { ResourcePageHeader } from "@/components/resources/resource-page-header"
+import { ResourceYamlEditDialog, InspectResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
+import { type ResourceDescriptor } from "@/lib/api/k8s-client"
 import {
   Select,
   SelectContent,
@@ -15,6 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+const EVENT_DESC: ResourceDescriptor = { version: "v1", resource: "events" }
+
 export default function EventsPage() {
   const activeCluster = useClusterStore((s) => s.activeCluster)
   const namespace = useClusterStore((s) => s.activeNamespace)
@@ -22,6 +26,7 @@ export default function EventsPage() {
   const [reason, setReason] = useState("__all")
   const [type, setType] = useState("__all")
   const [refreshKey, setRefreshKey] = useState(0)
+  const [inspectTarget, setInspectTarget] = useState<{ name: string; namespace?: string } | null>(null)
 
   const { data: nsData } = useK8sClusterResources(
     { version: "v1", resource: "namespaces" },
@@ -159,6 +164,25 @@ export default function EventsPage() {
             </div>
           </>
         }
+        actions={(item) => {
+          const meta = item.metadata as Record<string, string>
+          return (
+            <InspectResourceButton
+              onClick={() => setInspectTarget({ name: meta.name, namespace: meta.namespace })}
+            />
+          )
+        }}
+      />
+      <ResourceYamlEditDialog
+        open={!!inspectTarget}
+        onOpenChange={(o) => { if (!o) setInspectTarget(null) }}
+        cluster={activeCluster}
+        desc={EVENT_DESC}
+        name={inspectTarget?.name ?? ""}
+        namespace={inspectTarget?.namespace}
+        queryKey="events"
+        title="Inspect Event YAML"
+        readOnly
       />
     </div>
   )

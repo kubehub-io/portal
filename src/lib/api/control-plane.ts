@@ -136,6 +136,21 @@ export async function issueNodeJoinToken(clusterName: string): Promise<NodeJoinT
   return res.json()
 }
 
+export interface NodeReconcileTokenResponse {
+  nodeReconcileToken: string
+  token_type?: string
+  expires_in: number
+  scope?: string
+}
+
+export async function issueNodeReconcileToken(clusterName: string, nodeName: string): Promise<NodeReconcileTokenResponse> {
+  const res = await authFetch(
+    `/apis/v202611/clusters/${encodeURIComponent(clusterName)}/nodes/${encodeURIComponent(nodeName)}/nodeReconcileToken`,
+    { method: "POST" },
+  )
+  return res.json()
+}
+
 // ── Operations (shared by Cluster and Node) ──────────────
 
 export interface OperationError {
@@ -178,6 +193,7 @@ export interface Memory {
 export interface HardwareInfo {
   cpus?: CPU[]
   memory?: Memory
+  isVirtual?: boolean
 }
 
 export interface NodeSpec {
@@ -266,6 +282,16 @@ export interface BootstrapSecretResponse {
   clusterDNS?: string
   caCert?: string
   certPairs?: CertPairCollection
+  componentConfig?: ComponentConfigCollection
+}
+
+export interface ComponentConfig {
+  featureGates?: Record<string, boolean>
+  runtimeConfig?: Record<string, boolean>
+}
+
+export interface ComponentConfigCollection {
+  [component: string]: ComponentConfig
 }
 
 export async function bootstrapNode(clusterName: string, nodeName: string): Promise<BootstrapSecretResponse> {

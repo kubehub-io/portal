@@ -4,7 +4,7 @@ import { useState } from "react"
 import { type ColumnDef } from "@/components/resources/data-table"
 import { ResourceList } from "@/components/resources/resource-list"
 import { DeleteResourceButton } from "@/components/resources/delete-resource-button"
-import { ResourceYamlEditDialog, EditResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
+import { ResourceYamlEditDialog, EditResourceButton, InspectResourceButton } from "@/components/yaml/resource-yaml-edit-dialog"
 import { useK8sClusterResources } from "@/hooks/use-k8s-resources"
 import { useClusterStore } from "@/stores/cluster-store"
 import { type ResourceDescriptor } from "@/lib/api/k8s-client"
@@ -36,6 +36,7 @@ export function makeWorkloadPage(
     const { data, isLoading, error } = useK8sClusterResources(options.desc, resource)
 
     const [editTarget, setEditTarget] = useState<{ name: string; namespace?: string } | null>(null)
+    const [inspectTarget, setInspectTarget] = useState<{ name: string; namespace?: string } | null>(null)
 
     const namespaces = (nsData?.items ?? []).map((ns: { metadata: { name: string } }) => ns.metadata.name).sort()
     let items = (data?.items ?? []) as unknown as Record<string, unknown>[]
@@ -63,11 +64,15 @@ export function makeWorkloadPage(
             const meta = item.metadata as Record<string, string>
             return (
               <div className="flex items-center gap-1">
-                {options.editable && (
+                {options.editable ? (
                   <EditResourceButton
                     onClick={() =>
                       setEditTarget({ name: meta.name, namespace: meta.namespace })
                     }
+                  />
+                ) : (
+                  <InspectResourceButton
+                    onClick={() => setInspectTarget({ name: meta.name, namespace: meta.namespace })}
                   />
                 )}
                 <DeleteResourceButton
@@ -93,6 +98,19 @@ export function makeWorkloadPage(
             namespace={editTarget?.namespace}
             queryKey={resource}
             title={`Edit ${kind}`}
+          />
+        )}
+        {!options.editable && (
+          <ResourceYamlEditDialog
+            open={!!inspectTarget}
+            onOpenChange={(o) => { if (!o) setInspectTarget(null) }}
+            cluster={activeCluster}
+            desc={options.desc}
+            name={inspectTarget?.name ?? ""}
+            namespace={inspectTarget?.namespace}
+            queryKey={resource}
+            title={`Inspect ${kind} YAML`}
+            readOnly
           />
         )}
       </div>
